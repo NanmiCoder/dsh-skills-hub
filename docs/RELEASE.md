@@ -23,15 +23,15 @@ npm publish --access public
 
 `prepublishOnly` rebuilds and verifies the package. `prepack` also guards direct `npm pack`/`pnpm pack`. `pack:check` uses an internal `--ignore-scripts` pack only after the complete check has succeeded, avoiding recursion.
 
-Create the matching Git tag and GitHub Release (`v0.0.1`, not prerelease), attaching `release-notes/v0.0.1.md`. Do not also trigger the automated publication path after a manual publish: npm versions are immutable and the workflow correctly refuses duplicates.
+Create the matching Git tag and GitHub Release (`v0.0.1`, not prerelease), attaching `release-notes/v0.0.1.md`. The release workflow recognizes a version already published from the exact same Git commit and skips duplicate publication. A version associated with a different commit is rejected; npm versions are immutable. Publish only from a clean, committed release checkout.
 
 ## GitHub publication workflow
 
-As an alternative to the manual route, create repository environment `npm` and its `NPM_TOKEN` secret using an npm token authorized to publish this package. Configure any desired environment reviewer. The workflow at `.github/workflows/release.yml` runs when a GitHub Release is published, checks its tag and prerelease flag, rebuilds/tests/packs, checks registry identity/version, then publishes.
+The repository environment is `npm`. For automated publication, configure npm Trusted Publishing for GitHub owner `NanmiCoder`, repository `dsh-skills-hub`, workflow `release.yml`, environment `npm`, allowing direct publication. The workflow grants `id-token: write` and runs Node 24 with an OIDC-capable npm CLI. Alternatively, set the environment’s `NPM_TOKEN` secret to an npm token authorized to publish this package. Configure any desired environment reviewer. The workflow at `.github/workflows/release.yml` runs when a GitHub Release is published, checks its tag and prerelease flag, rebuilds/tests/packs, checks registry identity/version, then publishes.
 
-The token is supplied only to the publish step. No token is committed. If authentication is not configured the publish fails; the repository being public is not sufficient authentication. CI checks on Node 22.19 and 24 run on every push and pull request.
+The token is supplied only to the publish step. No token is committed. If neither trusted publishing nor token authentication is configured the publish fails; the repository being public is not sufficient authentication. CI checks on Node 22.19 and 24 run on every push and pull request.
 
-For future prereleases set `publishConfig.tag` to `next`, use a semver prerelease version and mark the GitHub Release as prerelease. Update `compatibility.json` and release notes with every version. `release-check.mjs` prevents version/cohort drift; the registry preflight rejects an existing version, repository-name collisions and moving `latest` backwards.
+For future prereleases set `publishConfig.tag` to `next`, use a semver prerelease version and mark the GitHub Release as prerelease. Update `compatibility.json` and release notes with every version. `release-check.mjs` prevents version/cohort drift; the registry preflight rejects an existing version by default, repository-name collisions and moving `latest` backwards. Only the release workflow opts into the exact-commit idempotency check.
 
 ## After publication / recovery
 

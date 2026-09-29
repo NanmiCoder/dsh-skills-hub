@@ -57,4 +57,3 @@ Layout: large typographic title on left 46%, object on right 54%, generous margi
 Palette: #F5F7FB background, #12233D navy text, #4176E6 cobalt and white.
 Style: restrained premium 3D illustration with soft lighting and precise geometry, tangible materials, not cartoon toys, no chrome or neon.
 Constraints: no brand logos, no extra source names, no robots, no brain icons, no floating decorations, no UI screenshot, no watermarks. Keep title and Chinese line readable when image is displayed 830px wide.
-

@@ -4,6 +4,7 @@ on:
     types: [published]
 permissions:
   contents: read
+  id-token: write
 concurrency:
   group: npm-release
   cancel-in-progress: false
@@ -29,8 +30,10 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
       - name: Check registry ownership and version
-        run: node scripts/registry-preflight.mjs
+        id: registry
+        run: node scripts/registry-preflight.mjs --allow-existing-commit
       - name: Publish
+        if: steps.registry.outputs.already_published != 'true'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
