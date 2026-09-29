@@ -35,13 +35,21 @@
 
 **Plugin `0.0.1` · Harness `0.2.0-rc.2`.** Targets the DeepSeek Harness 0.2.0 desktop release line; other host versions have not been validated. [See acceptance scope →](./docs/COMPATIBILITY.md)
 
-Install into your desktop profile:
+In **DeepSeek Harness desktop → Plugins → Add plugin**, paste either of the following:
 
-```sh
-dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.1
+**GitHub repository URL (recommended)**
+
+```text
+https://github.com/NanmiCoder/dsh-skills-hub
 ```
 
-Fully quit and reopen Harness, then choose **Skills Hub** in the sidebar. Replace `desktop` with your profile name if needed.
+**Or the npm package name**
+
+```text
+@nanmicoder/dsh-skills-hub
+```
+
+Click **Install**, then **Enable now**, and open **Skills Hub** from the sidebar. No terminal is needed. If your selected registry mirror has not synced the new version yet, switch to the official npm registry and retry.
 
 1. **Browse**: search a keyword or filter by source and security status.
 2. **Preview**: open a skill and read its overview and files.
@@ -50,7 +58,17 @@ Fully quit and reopen Harness, then choose **Skills Hub** in the sidebar. Replac
 > Keep the `@nanmicoder/` scope. The unscoped npm package `dsh-skills-hub` belongs to another author.
 
 <details>
-<summary><strong>Install from source</strong></summary>
+<summary><strong>Advanced: CLI and source installation</strong></summary>
+
+For CLI users, custom profiles or local development. To install a specific version:
+
+```sh
+dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.1
+```
+
+Replace `desktop` with your profile name. After a CLI installation, fully quit and reopen the corresponding Harness instance.
+
+To build from source:
 
 Requires Node.js `^22.19.0 || >=24` and pnpm `10.33.0`.
 
@@ -97,11 +115,7 @@ Defaults work out of the box. Advanced settings belong in the plugin row:
 | `allowUninstall` | `true` | Allow skill removal from the panel. |
 | `pageSize` | `24` | Marketplace page size. |
 
-Remove the plugin itself:
-
-```sh
-dsh plugin --profile desktop remove @nanmicoder/dsh-skills-hub
-```
+To remove the plugin itself, open **@nanmicoder/dsh-skills-hub** on the desktop **Plugins** page and click **Uninstall**.
 
 This does not delete installed skills. See the [implementation contract](./docs/CONTRACT.md) for discovery scope and APIs.
 

@@ -35,13 +35,21 @@
 
 **插件 `0.0.1` · 宿主 `0.2.0-rc.2`**。面向 DeepSeek Harness 0.2.0 桌面端产品线；其他宿主版本尚未验证。[查看验收范围 →](./docs/COMPATIBILITY.md)
 
-在运行桌面端的 profile 中安装：
+在 **DeepSeek Harness 桌面端 → 插件 → 添加插件** 中，粘贴下面任意一种内容：
 
-```sh
-dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.1
+**GitHub 仓库地址（推荐）**
+
+```text
+https://github.com/NanmiCoder/dsh-skills-hub
 ```
 
-完全退出并重新打开 Harness，在侧栏点击 **技能市场**。使用其他 profile 时，把 `desktop` 替换成对应名称。
+**或 npm 包名**
+
+```text
+@nanmicoder/dsh-skills-hub
+```
+
+点击 **安装**，完成后点击 **立即启用**，再从侧栏进入 **技能市场**。整个过程无需打开终端。若安装源暂未同步新版本，可切换到 npm 官方源后重试。
 
 1. **浏览**：搜索关键词，或按来源、安全状态筛选。
 2. **预览**：打开技能，阅读概览和文件内容。
@@ -50,7 +58,17 @@ dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.1
 > 包名必须带 `@nanmicoder/`。npm 上不带 scope 的 `dsh-skills-hub` 属于其他作者。
 
 <details>
-<summary><strong>从源码安装</strong></summary>
+<summary><strong>高级用法：命令行与源码安装</strong></summary>
+
+仅适用于使用 CLI、自定义 profile 或本地开发的用户。按指定版本安装：
+
+```sh
+dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.1
+```
+
+将 `desktop` 替换为需要使用的 profile 名称。通过 CLI 安装后，完全退出并重新打开对应的 Harness 实例。
+
+从源码构建：
 
 需要 Node.js `^22.19.0 || >=24` 和 pnpm `10.33.0`。
 
@@ -97,11 +115,7 @@ dsh plugin --profile desktop add ./artifacts/nanmicoder-dsh-skills-hub-0.0.1.tgz
 | `allowUninstall` | `true` | 是否允许在面板卸载技能。 |
 | `pageSize` | `24` | 市场分页大小。 |
 
-移除插件本身：
-
-```sh
-dsh plugin --profile desktop remove @nanmicoder/dsh-skills-hub
-```
+移除插件本身：在桌面端 **插件** 页面打开 **@nanmicoder/dsh-skills-hub**，点击 **卸载**。
 
 这不会删除已安装的技能。文件扫描范围与接口见[实现约定](./docs/CONTRACT.md)。
 
