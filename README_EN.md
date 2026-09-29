@@ -3,39 +3,37 @@
 </p>
 
 <p align="center">
-  <img src="./assets/readme/hero-en.png" width="100%" alt="Skills Hub for DeepSeek Harness. Your skills. One place. A conceptual 3D library of skill documents in a blue dock.">
+  <img src="./assets/readme/hero-en.png" width="100%" alt="Skills Hub for DeepSeek Harness. Your skills. One place.">
 </p>
 
 <p align="center">
   <strong>A skill marketplace and local skill manager for DeepSeek Harness</strong><br>
-  Browse ClawHub and SkillHub, read SKILL.md, then install into Harness.
+  Browse ClawHub and SkillHub to find the skills you need.
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick start</a> · <a href="./docs/COMPATIBILITY.md">Compatibility</a> · <a href="./docs/RELEASE.md">Release guide</a> · <a href="./LICENSE">MIT</a>
+  <a href="#quick-start">Quick start</a> · <a href="./docs/COMPATIBILITY.md">Compatibility</a> · <a href="./LICENSE">MIT</a>
 </p>
 
-## Discovery and local management, in one panel
+## Discover, install and manage skills in Harness
 
-**Skills Hub** brings two marketplaces and your local user skills into the Harness sidebar. Search, inspect the instructions, confirm an installation, and manage it from the **Installed** view.
+Search ClawHub and SkillHub, read a skill’s instructions, and install it into Harness. Manage marketplace installations and existing local skills together in **Installed**.
 
 <p align="center">
-  <img src="./assets/readme/marketplace.png" width="100%" alt="Actual Skills Hub panel in DeepSeek Harness: skill cards, search, filters, source health and the installed-skills entry.">
+  <img src="./assets/readme/marketplace.png" width="100%" alt="Skills Hub marketplace with search, filters and skill cards.">
 </p>
 
-*Actual Harness 0.2.0-rc.2 interface, shown in Chinese. Catalogue content changes upstream. The 3D hero is a conceptual illustration.*
-
-| What you want to do | How Skills Hub helps |
+| Feature | What it does |
 | --- | --- |
-| **Find a skill** | Search and filter ClawHub and SkillHub together. More results load as you scroll. |
-| **Inspect before installing** | Read Markdown, tables and code blocks; preview package files and upstream security reports. List and detail skeletons make loading visible. |
-| **Manage installed skills** | Search marketplace installations and local user skills, inspect their source, path and instructions, then confirm removal. |
+| **Discover skills** | Search and filter ClawHub and SkillHub together, with more results as you scroll. |
+| **Preview before installing** | Read instructions, inspect files and check security reports from the source. |
+| **Manage installed skills** | Search local skills, inspect their source and installation path, and confirm removal. |
 
 ## Quick start
 
-**Plugin `0.0.1` · Harness `0.2.0-rc.2`.** Targets the DeepSeek Harness 0.2.0 desktop release line; other host versions have not been validated. [See acceptance scope →](./docs/COMPATIBILITY.md)
+Supports **DeepSeek Harness 0.2.0-rc.2**. [Compatible versions](./docs/COMPATIBILITY.md)
 
-In **DeepSeek Harness desktop → Plugins → Add plugin**, paste either of the following:
+Open **DeepSeek Harness desktop → Plugins → Add plugin** and paste either of the following:
 
 **GitHub repository URL (recommended)**
 
@@ -49,86 +47,20 @@ https://github.com/NanmiCoder/dsh-skills-hub
 @nanmicoder/dsh-skills-hub
 ```
 
-Click **Install**, then **Enable now**, and open **Skills Hub** from the sidebar. No terminal is needed. If your selected registry mirror has not synced the new version yet, switch to the official npm registry and retry.
+Click **Install → Enable now**, then open **Skills Hub** from the sidebar.
 
-1. **Browse**: search a keyword or filter by source and security status.
-2. **Preview**: open a skill and read its overview and files.
-3. **Install**: confirm its source; use **Installed** to inspect, search or remove it later.
+## Use
 
-> Keep the `@nanmicoder/` scope. The unscoped npm package `dsh-skills-hub` belongs to another author.
+1. **Find**: enter a keyword or filter by source and security status.
+2. **Preview**: open a skill to read its instructions and inspect its files.
+3. **Install and manage**: confirm installation, then find or remove it in **Installed**.
 
-<details>
-<summary><strong>Advanced: CLI and source installation</strong></summary>
+Skills come from third-party authors. Check the source and instructions before installing; security reports are provided for reference.
 
-For CLI users, custom profiles or local development. To install a specific version:
+## Installed skills
 
-```sh
-dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.1
-```
+Use **Installed** to view and remove marketplace installations and existing local user skills. Project-specific skills and skills bundled with Harness are not included.
 
-Replace `desktop` with your profile name. After a CLI installation, fully quit and reopen the corresponding Harness instance.
+The removal dialog shows the exact location for you to confirm. To remove Skills Hub itself, open **@nanmicoder/dsh-skills-hub** on the desktop **Plugins** page and click **Uninstall**. Your installed skills will remain.
 
-To build from source:
-
-Requires Node.js `^22.19.0 || >=24` and pnpm `10.33.0`.
-
-```sh
-pnpm install --frozen-lockfile
-pnpm pack --pack-destination artifacts
-dsh plugin --profile desktop add ./artifacts/nanmicoder-dsh-skills-hub-0.0.1.tgz
-```
-
-Restart Harness afterward. Build artifacts are committed with source and rebuilt and checked before packing.
-
-</details>
-
-## Local management with explicit paths
-
-The list covers the configured installation root, `$DSH_HOME/skills` and the shared agents user skills directory. It discovers directory-based skills, flat Markdown files and symlinks. Skills with the same name at different paths remain separate entries.
-
-- **Confirm removals** after checking the exact location.
-- **Unlink linked skills** without deleting their original files.
-- **Manage user skills**; project-specific and bundled skills are outside this host-level list.
-
-Installation does not execute skill scripts or overwrite existing directories. Skills may instruct an agent to run third-party code later. Security labels are upstream reports, not independent audits; review the contents and publisher before installing.
-
-<details>
-<summary><strong>Configuration and plugin removal</strong></summary>
-
-Defaults work out of the box. Advanced settings belong in the plugin row:
-
-```yaml
-- id: skills-hub
-  name: '@nanmicoder/dsh-skills-hub'
-  config:
-    allowUninstall: false
-    timeoutMs: 30000
-```
-
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `skillsRoot` | `null` | Installation root; defaults to Harness's user skills directory. |
-| `clawhubBaseUrl` | `https://clawhub.ai` | ClawHub API origin. |
-| `skillhubBaseUrl` | `https://api.skillhub.cn` | SkillHub API origin. |
-| `timeoutMs` | `15000` | Per-request upstream timeout in milliseconds. |
-| `requestRetries` | `1` | Retries for network and server failures. |
-| `allowUninstall` | `true` | Allow skill removal from the panel. |
-| `pageSize` | `24` | Marketplace page size. |
-
-To remove the plugin itself, open **@nanmicoder/dsh-skills-hub** on the desktop **Plugins** page and click **Uninstall**.
-
-This does not delete installed skills. See the [implementation contract](./docs/CONTRACT.md) for discovery scope and APIs.
-
-</details>
-
-## Develop and release
-
-```sh
-pnpm install --frozen-lockfile
-pnpm check       # types, build, regression tests and release metadata
-pnpm pack:check  # also inspect package contents and runtime import closure
-```
-
-[Contributing](./CONTRIBUTING.md) · [Maintenance rules](./AGENTS.md) · [Compatibility and acceptance](./docs/COMPATIBILITY.md) · [0.0.1 release guide](./docs/RELEASE.md)
-
-MIT. See [LICENSE](./LICENSE).
+[Report an issue](https://github.com/NanmiCoder/dsh-skills-hub/issues) · [Advanced configuration](./docs/CONFIGURATION.md) · [Contribute](./CONTRIBUTING.md) · [MIT license](./LICENSE)
