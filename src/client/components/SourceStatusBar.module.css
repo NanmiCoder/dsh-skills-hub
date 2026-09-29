@@ -1,0 +1,71 @@
+/* Per-source health strip. Pills stay on one line and wrap as a group rather
+   than each pill breaking internally, so the strip keeps a readable rhythm at
+   the 720px panel width. */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.dot {
+  font-size: 10px;
+  line-height: 10px;
+}
+
+.name {
+  color: var(--dsw-alias-label-primary, #0f1115);
+  font-weight: 600;
+}
+
+.status {
+  color: var(--dsw-alias-label-tertiary, #81858c);
+}
+
+.refresh {
+  flex: none;
+}
+
+.spinning {
+  animation: skills-hub-spin 900ms linear infinite;
+  transform-origin: center;
+}
+
+@keyframes skills-hub-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation: none;
+  }
+}

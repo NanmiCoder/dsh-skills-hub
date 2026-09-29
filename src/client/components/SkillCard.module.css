@@ -1,0 +1,206 @@
+/* Catalogue card. Fixed structure top to bottom — head, clamped summary,
+   tags, footer pinned with `margin-top: auto` — so a grid row of cards lines
+   up even when one has no tags. `min-width: 0` on every text carrier is what
+   keeps long skill names truncating instead of widening the grid track. */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 188px;
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
+  border-radius: var(--dsw-radius-md, 12px);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.card:hover {
+  border-color: var(--dsw-alias-border-l3, #00000029);
+  background: var(--dsw-alias-interactive-bg-hover, #2631480f);
+}
+
+.card:focus-within {
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+}
+
+/* Stretched hit area: covers the card, sits under the content. */
+.open {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.open:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4176e6);
+  outline-offset: 2px;
+}
+
+.head,
+.summary,
+.tags,
+.footer {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.headText {
+  min-width: 0;
+  flex: 1;
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary, #0f1115);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22px;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.version {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary, #81858c);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.origin {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.source {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary, #81858c);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.author {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary, #61666b);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary {
+  /* Three visible lines, two reserved: short summaries keep their row compact
+     while a long one still has somewhere to go before it clips. */
+  display: -webkit-box;
+  min-height: 42px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary, #61666b);
+  font-size: 13px;
+  line-height: 21px;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 18px;
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary, #81858c);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.tagIcon {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary, #81858c);
+}
+
+.tag {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--dsw-alias-border-l1, #0000000a);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  color: var(--dsw-alias-label-secondary, #61666b);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+}
+
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+/* The card body is inert so the stretched button owns the click; the one real
+   control inside has to opt back into hit testing. */
+.install {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+}

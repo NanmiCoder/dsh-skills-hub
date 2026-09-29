@@ -1,0 +1,41 @@
+/* Audit verdict chip. Tone recipes mirror the primitives' own Tag: a 10-12%
+   tint of the state token for the fill with the token itself as the text, so a
+   palette change moves fill and label together and neither needs a second
+   token. The tints are translucent, which keeps them correct on a card surface
+   in either theme. */
+
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.compact {
+  height: 18px;
+  padding: 0 6px;
+  font-size: 10.5px;
+}
+
+.success {
+  color: var(--dsw-alias-state-success-primary, #22c55e);
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #22c55e) 12%, transparent);
+}
+
+.neutral {
+  color: var(--dsw-alias-label-secondary, #61666b);
+  background: var(--dsw-alias-bg-module-platform, #f5f6f7);
+}
+
+.danger {
+  color: var(--dsw-alias-state-error-primary, #ec1313);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary, #ec1313) 12%, transparent);
+}

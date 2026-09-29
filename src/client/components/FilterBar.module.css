@@ -1,0 +1,93 @@
+/* Search + filters. Everything wraps instead of scrolling: at the 720px panel
+   width the search field keeps a usable minimum and the three selects move to
+   the next line, which is the only way this row survives a narrow dock
+   without a horizontal scrollbar. */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.search {
+  display: flex;
+  flex: 1 1 220px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.searchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.clear {
+  flex: none;
+}
+
+.field {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
+  border-radius: var(--dsw-radius-sm, 8px);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  cursor: pointer;
+}
+
+.field:focus-within {
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+}
+
+.fieldLabel {
+  color: var(--dsw-alias-label-tertiary, #81858c);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.select {
+  max-width: 148px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary, #0f1115);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 18px;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+.select:disabled {
+  color: var(--dsw-alias-label-tertiary, #81858c);
+  cursor: not-allowed;
+}
+
+/* A native dropdown paints its own menu with the OS palette, so the option
+   rows are pinned to the theme's surface and label tokens. */
+.select option {
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #0f1115);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

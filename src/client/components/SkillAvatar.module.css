@@ -1,0 +1,92 @@
+/* Skill icon tile: a rounded square that keeps one corner ratio at every size.
+   Tones are built by mixing a state token with the theme's ink token, so a
+   single recipe lands deep-on-light and pastel-on-dark, and the letter color
+   (label-primary-inverted) flips with it — one rule, both themes. */
+
+.image {
+  flex: none;
+  object-fit: cover;
+  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
+  background: var(--dsw-alias-bg-module-platform, #f5f6f7);
+}
+
+.letter {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--dsw-alias-label-primary-inverted, #ffffff);
+  user-select: none;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--dsw-alias-label-primary-inverted, #ffffff) 12%, transparent);
+}
+
+/* ClawHub family: amber, olive, green. */
+.tone1 {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--dsw-alias-state-success-primary, #22c55e) 74%, var(--dsw-alias-label-primary, #0f1115)),
+    color-mix(in srgb, var(--dsw-alias-state-success-primary, #22c55e) 48%, var(--dsw-alias-label-primary, #0f1115))
+  );
+}
+
+.tone2 {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f59e0b) 80%, var(--dsw-alias-label-primary, #0f1115)),
+    color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f59e0b) 54%, var(--dsw-alias-label-primary, #0f1115))
+  );
+}
+
+.tone5 {
+  background: linear-gradient(
+    145deg,
+    color-mix(
+      in srgb,
+      color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f59e0b) 55%, var(--dsw-alias-state-success-primary, #22c55e)) 78%,
+      var(--dsw-alias-label-primary, #0f1115)
+    ),
+    color-mix(
+      in srgb,
+      color-mix(in srgb, var(--dsw-alias-state-warn-primary, #f59e0b) 55%, var(--dsw-alias-state-success-primary, #22c55e)) 50%,
+      var(--dsw-alias-label-primary, #0f1115)
+    )
+  );
+}
+
+/* SkillHub family: blue, teal, neutral. */
+.tone0 {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 82%, var(--dsw-alias-label-primary, #0f1115)),
+    color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 56%, var(--dsw-alias-label-primary, #0f1115))
+  );
+}
+
+.tone4 {
+  background: linear-gradient(
+    145deg,
+    color-mix(
+      in srgb,
+      color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 58%, var(--dsw-alias-state-success-primary, #22c55e)) 80%,
+      var(--dsw-alias-label-primary, #0f1115)
+    ),
+    color-mix(
+      in srgb,
+      color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 58%, var(--dsw-alias-state-success-primary, #22c55e)) 52%,
+      var(--dsw-alias-label-primary, #0f1115)
+    )
+  );
+}
+
+.tone3 {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--dsw-alias-state-idle-primary, #d4d4d4) 62%, var(--dsw-alias-label-primary, #0f1115)),
+    color-mix(in srgb, var(--dsw-alias-state-idle-primary, #d4d4d4) 38%, var(--dsw-alias-label-primary, #0f1115))
+  );
+}

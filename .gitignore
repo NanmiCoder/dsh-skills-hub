@@ -1,0 +1,10 @@
+node_modules/
+artifacts/
+*.tsbuildinfo
+.DS_Store
+
+# `lib/` IS committed on purpose: this plugin is distributed through Git as well
+# as npm, and a Git install gets the source tree, not a build output. Keeping the
+# compiled host half, the bundled client half and the type declarations in the
+# repository is what makes `dsh plugin add github:<owner>/dsh-skills-hub` work
+# without the user running a build.

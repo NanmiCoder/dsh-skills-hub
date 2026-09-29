@@ -1,0 +1,395 @@
+/**
+ * Skills Market — aggregation service (host half).
+ *
+ * Merges the two upstream providers into a single paginated feed with
+ * cross-source dedupe, per-source health/degradation reporting, TTL caching
+ * (stale-while-error) and locally-computed install state.
+ *
+ * The module is deliberately free of DSH services and of the filesystem: the
+ * "what is installed locally" question is answered by an injected
+ * `InstalledLookup` (see `setInstalledLookup`), so this file can be unit-tested
+ * by pointing the providers at a stub server.
+ */
+
+import { getSourceHealth, markSourceHealth, MARKET_TTL, marketCache } from './cache.ts'
+import { clawhubProvider } from './clawhub-provider.ts'
+import { skillhubProvider } from './skillhub-provider.ts'
+import {
+  MARKET_LIMITS,
+  MARKET_SOURCES,
+  detectMarketLanguage,
+  sanitizeDirName,
+  skillId,
+  type MarketFileContent,
+  type MarketListResult,
+  type MarketProvider,
+  type MarketSource,
+  type NormalizedSkill,
+  type NormalizedSkillDetail,
+  type ProviderListPage,
+  type SecurityStatus,
+  type SourceStatusInfo,
+} from './types.ts'
+
+const providers: Record<MarketSource, MarketProvider> = {
+  clawhub: clawhubProvider,
+  skillhub: skillhubProvider,
+}
+
+// ─── Installed-skill seam ────────────────────────────────────────────────────
+
+/**
+ * Local install state, injected by the plugin host (which owns the skills
+ * directory). Both methods are synchronous: the host keeps an in-memory index
+ * and rescans it after install/uninstall.
+ */
+export interface InstalledLookup {
+  /** ids (`source:slug`) of skills already present in the local skills directory */
+  has(id: string): boolean
+  info(id: string): { dirName: string; version?: string; installedAt?: string } | undefined
+}
+
+/** Nothing is installed until the host installs its real lookup. */
+const EMPTY_INSTALLED_LOOKUP: InstalledLookup = {
+  has: () => false,
+  info: () => undefined,
+}
+
+let installedLookup: InstalledLookup = EMPTY_INSTALLED_LOOKUP
+
+export function setInstalledLookup(lookup: InstalledLookup): void {
+  installedLookup = lookup
+}
+
+/** Test hook: fall back to "nothing installed" (also used when a plugin unloads). */
+export function resetInstalledLookup(): void {
+  installedLookup = EMPTY_INSTALLED_LOOKUP
+}
+
+// ─── Cursor (opaque, merges both providers' pagination) ─────────────────────
+
+type MergedCursor = Partial<Record<MarketSource, string>>
+
+export function encodeCursor(cursor: MergedCursor): string | null {
+  const keys = Object.keys(cursor)
+  if (keys.length === 0) return null
+  return Buffer.from(JSON.stringify(cursor), 'utf-8').toString('base64url')
+}
+
+export function decodeCursor(raw: string | null | undefined): MergedCursor | undefined {
+  if (!raw) return undefined
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf-8')) as unknown
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined
+    const cursor: MergedCursor = {}
+    const record = parsed as Record<string, unknown>
+    for (const source of MARKET_SOURCES) {
+      const value = record[source]
+      if (typeof value === 'string' && value) cursor[source] = value
+    }
+    return cursor
+  } catch {
+    return undefined
+  }
+}
+
+// ─── Install-state annotation ────────────────────────────────────────────────
+
+/**
+ * Stamp a market item with its local install state.
+ *
+ * Computed on every request (never cached): a skill installed a second ago must
+ * show up as installed on the next list call. The reference version also probed
+ * the skills directory for a name conflict; that check needs a filesystem, so it
+ * now belongs to the install path, which refuses to overwrite a directory it did
+ * not create.
+ */
+export function annotateInstallState<T extends NormalizedSkill>(skill: T): T {
+  // A non-string slug is untrusted upstream data: degrade it to "not
+  // installable" instead of throwing the whole list request away.
+  const dirName = typeof skill.slug === 'string' ? sanitizeDirName(skill.slug) : null
+  if (!dirName) {
+    return { ...skill, installState: 'not-installable', notInstallableReason: 'invalid-name' }
+  }
+  const id = skillId(skill.source, skill.slug)
+  if (!installedLookup.has(id)) {
+    return { ...skill, installState: 'installable', notInstallableReason: undefined, installedInfo: undefined }
+  }
+  const info = installedLookup.info(id)
+  return {
+    ...skill,
+    installState: 'installed',
+    notInstallableReason: undefined,
+    installedInfo: {
+      dirName: info?.dirName ?? dirName,
+      version: info?.version,
+      installedAt: info?.installedAt,
+    },
+  }
+}
+
+/** File-level installability checks — only possible once the file list is known. */
+export function applyFileLimits(detail: NormalizedSkillDetail): NormalizedSkillDetail {
+  const files = detail.files.map((file) => ({ ...file, tooBig: file.size > MARKET_LIMITS.maxFileSize }))
+  const result: NormalizedSkillDetail = { ...detail, files }
+  if (result.installState !== 'installable') return result
+  if (files.length === 0 || !files.some((file) => file.path === 'SKILL.md')) {
+    return { ...result, installState: 'not-installable', notInstallableReason: 'empty-file-list' }
+  }
+  if (files.length > MARKET_LIMITS.maxFileCount) {
+    return { ...result, installState: 'not-installable', notInstallableReason: 'too-many-files' }
+  }
+  if (files.some((file) => file.tooBig) || result.totalSize > MARKET_LIMITS.maxTotalSize) {
+    return { ...result, installState: 'not-installable', notInstallableReason: 'file-too-large' }
+  }
+  return result
+}
+
+// ─── Cross-source dedupe ─────────────────────────────────────────────────────
+
+/**
+ * SkillHub mirrors ClawHub skills (source='clawhub' + upstream_url). When a
+ * page contains both the mirror and the ClawHub original, merge them: the
+ * ClawHub entry wins (fresher data), enriched with SkillHub-only fields.
+ *
+ * Unlike the reference this does not mutate its input: those items come from
+ * the shared response cache, and mutating them made `mirrors` grow on every
+ * repeat request.
+ */
+export function dedupeSkills(items: NormalizedSkill[]): NormalizedSkill[] {
+  const copies = items.map((item) => ({ ...item }))
+  const byClawhubSlug = new Map<string, NormalizedSkill>()
+  for (const item of copies) {
+    if (item.source === 'clawhub') byClawhubSlug.set(item.slug, item)
+  }
+  const result: NormalizedSkill[] = []
+  for (const item of copies) {
+    if (item.source === 'skillhub' && item.upstream?.slug) {
+      const original = byClawhubSlug.get(item.upstream.slug)
+      if (original) {
+        original.mirrors = [...(original.mirrors ?? []), item.id]
+        // Enrich the original with SkillHub-only data.
+        if (!original.iconUrl && item.iconUrl) original.iconUrl = item.iconUrl
+        if (original.securityStatus === 'unknown' && item.securityStatus !== 'unknown') {
+          original.securityStatus = item.securityStatus
+        }
+        if (item.tags.length && original.tags.length === 0) original.tags = item.tags
+        continue
+      }
+    }
+    result.push(item)
+  }
+  return result
+}
+
+// ─── List / search ───────────────────────────────────────────────────────────
+
+export interface ListMarketSkillsParams {
+  q?: string
+  source: 'all' | MarketSource
+  security: 'all' | SecurityStatus
+  installed: 'all' | 'installed' | 'installable'
+  cursor?: string
+  limit: number
+}
+
+type ProviderOutcome = {
+  page: ProviderListPage | null
+  status: SourceStatusInfo
+}
+
+/**
+ * Cache key for one provider page.
+ *
+ * The fields are JSON-encoded rather than `:`-joined: with a joined key,
+ * `q="alpha"` + `cursor="x:y"` and `q="alpha:x"` + `cursor="y"` produced the same
+ * string, so one request was served the other's page. `source` stays a leading
+ * segment so every key is obviously source-scoped.
+ */
+function providerPageCacheKey(
+  source: MarketSource,
+  kind: 'list' | 'search',
+  params: { q?: string; cursor?: string; limit: number },
+): string {
+  return `${kind}:${source}:${JSON.stringify([params.q ?? null, params.cursor ?? null, params.limit])}`
+}
+
+async function fetchProviderPage(
+  source: MarketSource,
+  params: { q?: string; cursor?: string; limit: number },
+): Promise<ProviderOutcome> {
+  const isSearch = Boolean(params.q)
+  const cacheKey = providerPageCacheKey(source, isSearch ? 'search' : 'list', params)
+  const ttl = isSearch ? MARKET_TTL.search : MARKET_TTL.list
+
+  const cached = marketCache.get<ProviderListPage>(cacheKey)
+  if (cached) {
+    return { page: cached, status: { status: 'ok', fetchedAt: Date.now(), fromCache: true } }
+  }
+
+  try {
+    const q = params.q
+    const page = isSearch && q !== undefined
+      ? await providers[source].search({ q, cursor: params.cursor, limit: params.limit })
+      : await providers[source].list({ cursor: params.cursor, limit: params.limit })
+    marketCache.set(cacheKey, page, ttl)
+    return { page, status: { status: 'ok', fetchedAt: Date.now(), fromCache: false } }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    // A provider that rejects a well-formed HTTP 200 (missing `items`, a
+    // non-zero SkillHub envelope code) never reaches the fetch layer's failure
+    // bookkeeping, so record it here — otherwise the source bar keeps claiming
+    // the registry is healthy while every request fails.
+    markSourceHealth(source, 'failed', message)
+    // Stale-while-error: a degraded source still serves its last good page, so a
+    // temporary upstream outage does not empty the panel.
+    const stale = marketCache.getStale<ProviderListPage>(cacheKey)
+    if (stale) {
+      return {
+        page: stale.value,
+        status: { status: 'cached', fetchedAt: stale.storedAt, fromCache: true, error: message },
+      }
+    }
+    return { page: null, status: { ...getSourceHealth(source), fromCache: false, error: message } }
+  }
+}
+
+export async function listMarketSkills(params: ListMarketSkillsParams): Promise<MarketListResult> {
+  const cursor = decodeCursor(params.cursor)
+  const isFirstPage = !params.cursor
+  const activeSources = params.source === 'all' ? MARKET_SOURCES : [params.source]
+  const q = params.q
+
+  const outcomes = new Map<MarketSource, ProviderOutcome>()
+  await Promise.all(
+    activeSources.map(async (source) => {
+      // A source absent from a non-first-page cursor is exhausted.
+      const providerCursor = cursor?.[source]
+      if (!isFirstPage && !providerCursor) {
+        outcomes.set(source, { page: { items: [] }, status: { status: 'ok', fromCache: true } })
+        return
+      }
+      // ClawHub search has no pagination: ask it for one big page and let the
+      // aggregate cap apply, instead of pretending a second page exists.
+      const limit = q && source === 'clawhub' ? MARKET_LIMITS.searchResultCap : params.limit
+      outcomes.set(source, await fetchProviderPage(source, { q, cursor: providerCursor, limit }))
+    }),
+  )
+
+  let merged: NormalizedSkill[] = []
+  const nextCursor: MergedCursor = {}
+  const sources = {} as Record<MarketSource, SourceStatusInfo>
+
+  for (const source of MARKET_SOURCES) {
+    const outcome = outcomes.get(source)
+    if (!outcome) {
+      sources[source] = { status: 'ok', fromCache: false }
+      continue
+    }
+    sources[source] = outcome.status
+    if (outcome.page) {
+      merged.push(...outcome.page.items)
+      if (outcome.page.nextCursor) nextCursor[source] = outcome.page.nextCursor
+    }
+  }
+
+  merged = dedupeSkills(merged)
+  merged.sort((a, b) => b.stats.downloads - a.stats.downloads)
+  merged = merged.map((item) => annotateInstallState(item))
+
+  if (params.security !== 'all') {
+    merged = merged.filter((item) => item.securityStatus === params.security)
+  }
+  if (params.installed !== 'all') {
+    merged = merged.filter((item) =>
+      params.installed === 'installed'
+        ? item.installState === 'installed'
+        : item.installState !== 'installed',
+    )
+  }
+
+  return { items: merged, nextCursor: encodeCursor(nextCursor), sources }
+}
+
+// ─── Detail / file content ───────────────────────────────────────────────────
+
+export async function getMarketSkillDetail(
+  source: MarketSource,
+  slug: string,
+): Promise<{ skill: NormalizedSkillDetail; sourceStatus: SourceStatusInfo }> {
+  const cacheKey = `detail:${source}:${slug}`
+  let detail = marketCache.get<NormalizedSkillDetail>(cacheKey)
+  let sourceStatus: SourceStatusInfo = { status: 'ok', fetchedAt: Date.now(), fromCache: true }
+
+  if (!detail) {
+    try {
+      detail = await providers[source].detail(slug)
+      marketCache.set(cacheKey, detail, MARKET_TTL.detail)
+      sourceStatus = { status: 'ok', fetchedAt: Date.now(), fromCache: false }
+    } catch (error) {
+      const stale = marketCache.getStale<NormalizedSkillDetail>(cacheKey)
+      if (!stale) throw error
+      detail = stale.value
+      sourceStatus = {
+        status: 'cached',
+        fetchedAt: stale.storedAt,
+        fromCache: true,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
+
+  const annotated = applyFileLimits(annotateInstallState(detail))
+  return { skill: annotated, sourceStatus }
+}
+
+export function isValidMarketFilePath(filePath: string): boolean {
+  if (!filePath || filePath.length > 512) return false
+  if (filePath.startsWith('/') || filePath.startsWith('\\')) return false
+  if (filePath.includes('..') || filePath.includes('\0')) return false
+  return true
+}
+
+export async function getMarketFileContent(
+  source: MarketSource,
+  slug: string,
+  filePath: string,
+): Promise<MarketFileContent> {
+  // JSON-encoded for the same reason as the list keys: slug and filePath are
+  // both caller-controlled, so a `:`-joined key is ambiguous.
+  const cacheKey = `file:${source}:${JSON.stringify([slug, filePath])}`
+  const cached = marketCache.get<MarketFileContent>(cacheKey)
+  if (cached) return cached
+
+  const fetched = await providers[source].fetchFile(slug, filePath)
+  let content = fetched.content
+  let truncated = false
+  if (Buffer.byteLength(content, 'utf-8') > MARKET_LIMITS.previewTruncateBytes) {
+    content = Buffer.from(content, 'utf-8').subarray(0, MARKET_LIMITS.previewTruncateBytes).toString('utf-8')
+    truncated = true
+  }
+  const result: MarketFileContent = {
+    path: filePath,
+    content,
+    language: detectMarketLanguage(filePath),
+    size: fetched.size,
+    truncated,
+  }
+  marketCache.set(cacheKey, result, MARKET_TTL.fileContent)
+  return result
+}
+
+// ─── Status ──────────────────────────────────────────────────────────────────
+
+export function getMarketStatus(): Record<MarketSource, SourceStatusInfo> {
+  return {
+    clawhub: getSourceHealth('clawhub'),
+    skillhub: getSourceHealth('skillhub'),
+  }
+}
+
+/** Look up a single skill (used by install) — the detail path, bypassing list. */
+export async function resolveMarketSkill(source: MarketSource, slug: string): Promise<NormalizedSkillDetail> {
+  const { skill } = await getMarketSkillDetail(source, slug)
+  return skill
+}

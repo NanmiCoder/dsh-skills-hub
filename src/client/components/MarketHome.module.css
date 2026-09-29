@@ -1,0 +1,169 @@
+/* Market catalogue page. The grid is the only element allowed to size the
+   layout: `auto-fill` + `minmax(300px, 1fr)` means a 720px dock gets two
+   columns, a wide window gets more, and neither case scrolls sideways. */
+
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px 20px 28px;
+  box-sizing: border-box;
+  color: var(--dsw-alias-label-primary, #0f1115);
+}
+
+.masthead {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
+  border-radius: var(--dsw-radius-md, 12px);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #0f1115);
+}
+
+.mastheadText {
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 30px;
+  letter-spacing: -0.012em;
+  overflow-wrap: anywhere;
+}
+
+.subtitle {
+  margin: 3px 0 0;
+  max-width: 62ch;
+  color: var(--dsw-alias-label-secondary, #61666b);
+  font-size: 13.5px;
+  line-height: 21px;
+  overflow-wrap: anywhere;
+}
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.count {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary, #61666b);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 0;
+  color: var(--dsw-alias-label-secondary, #61666b);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 44px 20px;
+  border: 1px dashed var(--dsw-alias-border-l3, #00000029);
+  border-radius: var(--dsw-radius-md, 12px);
+  color: var(--dsw-alias-label-tertiary, #81858c);
+}
+
+.emptyTitle {
+  margin: 0;
+  color: var(--dsw-alias-label-primary, #0f1115);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 21px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.emptyText {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 12.5px;
+  line-height: 19px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 20px;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary, #ec1313) 34%, transparent);
+  border-radius: var(--dsw-radius-md, 12px);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary, #ec1313) 8%, transparent);
+  text-align: center;
+}
+
+.errorIcon {
+  color: var(--dsw-alias-state-error-primary, #ec1313);
+}
+
+.errorTitle {
+  margin: 0;
+  color: var(--dsw-alias-label-primary, #0f1115);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 21px;
+}
+
+.errorDetail {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--dsw-alias-label-tertiary, #81858c);
+  font-size: 12px;
+  line-height: 19px;
+  overflow-wrap: anywhere;
+}

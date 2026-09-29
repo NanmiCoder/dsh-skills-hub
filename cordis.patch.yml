@@ -1,0 +1,5 @@
+# Add only our own plugin row. This layer does not replace any official DSH
+# component: the profile keeps every bundle it already had.
+- insert:
+    - id: skills-hub
+      name: dsh-skills-hub

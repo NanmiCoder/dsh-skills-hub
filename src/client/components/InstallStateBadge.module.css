@@ -1,0 +1,33 @@
+/* Install state chip. Same recipe as SecurityBadge; `brand` borrows the
+   business accent because "you can add this" is a call to action, while
+   `not-installable` is the only state that earns the error tint. */
+
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.success {
+  color: var(--dsw-alias-state-success-primary, #22c55e);
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #22c55e) 12%, transparent);
+}
+
+.brand {
+  color: var(--dsw-alias-state-business-primary, #4176e6);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 12%, transparent);
+}
+
+.danger {
+  color: var(--dsw-alias-state-error-primary, #ec1313);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary, #ec1313) 12%, transparent);
+}
