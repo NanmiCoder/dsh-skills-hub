@@ -75,7 +75,7 @@ jobs:
         working-directory: candidate
         run: sha256sum --check SHA256SUMS
       - name: Publish verified candidate
-        run: npm publish candidate/*.tgz --ignore-scripts --access public --tag latest
+        run: npm publish ./candidate/*.tgz --ignore-scripts --access public --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   release:
