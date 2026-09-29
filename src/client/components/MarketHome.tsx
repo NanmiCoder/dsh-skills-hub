@@ -1,7 +1,8 @@
+import { useEffect, useRef } from 'react'
 import { Button, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarketFilters, MarketState, MarketController } from '../state.ts'
 import { useT } from '../locale-context.tsx'
-import { AlertIcon, DownloadIcon, RefreshIcon, SkillsHubIcon } from '../icons.tsx'
+import { AlertIcon, RefreshIcon, SkillsHubIcon } from '../icons.tsx'
 import { FilterBar } from './FilterBar.tsx'
 import { MarketDisclaimer } from './MarketDisclaimer.tsx'
 import { SkillCard } from './SkillCard.tsx'
@@ -18,6 +19,19 @@ import styles from './MarketHome.module.css'
 export function MarketHome(props: { state: MarketState; controller: MarketController }): JSX.Element {
   const { state, controller } = props
   const t = useT()
+  const sentinelRef = useRef<HTMLDivElement>(null)
+
+  // Observe the end of the catalogue within the host's scrollable dock. Re-arm
+  // after each page so a short page naturally fills the viewport.
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (sentinel === null || state.nextCursor === null || state.loading || state.loadingMore || state.error !== null) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void controller.loadMore()
+    }, { rootMargin: '240px 0px' })
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [controller, state.nextCursor, state.loading, state.loadingMore, state.error])
 
   /**
    * The filter bar reports a patch; the controller exposes one setter per
@@ -75,7 +89,7 @@ export function MarketHome(props: { state: MarketState; controller: MarketContro
               variant="outline"
               size="md"
               icon={<RefreshIcon size={16} />}
-              onClick={() => void controller.refresh()}
+              onClick={() => void (hasItems ? controller.loadMore() : controller.refresh())}
             >
               {t('retry')}
             </Button>
@@ -83,13 +97,24 @@ export function MarketHome(props: { state: MarketState; controller: MarketContro
         )}
 
         {state.error === null && isInitialLoad && (
-          <p className={styles.loading} role="status" aria-live="polite">
-            <StateDot state="ongoing" size={16} />
-            {t('loading')}
-          </p>
+          <div role="status" aria-label={t('loading')}>
+            <div className={styles.grid} aria-hidden="true">
+              {Array.from({ length: 8 }, (_, index) => (
+                <div className={styles.skeletonCard} key={index}>
+                  <div className={styles.skeletonHeader}>
+                    <span className={styles.skeletonAvatar} />
+                    <span className={styles.skeletonTitle} />
+                  </div>
+                  <span className={styles.skeletonLine} />
+                  <span className={styles.skeletonLine} />
+                  <span className={styles.skeletonShort} />
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
-        {state.error === null && !state.loading && !hasItems && (
+        {state.error === null && !state.loading && !hasItems && state.nextCursor === null && (
           <div className={styles.empty}>
             <SkillsHubIcon size={26} />
             <p className={styles.emptyTitle}>{narrowed ? t('emptySearch') : t('empty')}</p>
@@ -97,7 +122,7 @@ export function MarketHome(props: { state: MarketState; controller: MarketContro
           </div>
         )}
 
-        {state.error === null && hasItems && (
+        {hasItems && (
           <>
             <div className={styles.grid}>
               {state.items.map((skill) => (
@@ -111,28 +136,18 @@ export function MarketHome(props: { state: MarketState; controller: MarketContro
               ))}
             </div>
 
-            {state.nextCursor !== null && (
-              <div className={styles.more}>
-                {state.loadingMore ? (
+          </>
+        )}
+        {state.nextCursor !== null && (
+              <div ref={sentinelRef} className={styles.more}>
+                {state.loadingMore && (
                   <p className={styles.loading} role="status" aria-live="polite">
                     <StateDot state="ongoing" size={16} />
                     {t('loadingMore')}
                   </p>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="md"
-                    disabled={state.loading}
-                    icon={<DownloadIcon size={16} />}
-                    onClick={() => void controller.loadMore()}
-                  >
-                    {t('loadMore')}
-                  </Button>
                 )}
               </div>
             )}
-          </>
-        )}
       </div>
     </div>
   )

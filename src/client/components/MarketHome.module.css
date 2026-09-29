@@ -167,3 +167,30 @@
   line-height: 19px;
   overflow-wrap: anywhere;
 }
+
+.skeletonCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 158px;
+  padding: 18px;
+  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
+  border-radius: var(--dsw-radius-md, 12px);
+}
+.skeletonHeader { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.skeletonAvatar, .skeletonTitle, .skeletonLine, .skeletonShort {
+  display: block;
+  background: var(--dsw-alias-border-l2, #0000001a);
+  border-radius: 5px;
+  animation: skeletonPulse 1.6s ease-in-out infinite alternate;
+}
+.skeletonAvatar { width: 44px; height: 44px; border-radius: 12px; flex: none; }
+.skeletonTitle { width: 55%; height: 18px; }
+.skeletonLine { width: 100%; height: 12px; }
+.skeletonShort { width: 42%; height: 12px; }
+.more { min-height: 32px; }
+@keyframes skeletonPulse { to { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) {
+  .skeletonAvatar, .skeletonTitle, .skeletonLine, .skeletonShort { animation: none; }
+}
+@media (max-width: 380px) { .grid { grid-template-columns: minmax(0, 1fr); } }

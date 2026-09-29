@@ -15,7 +15,7 @@
  *    detail/file request per target.
  *  - **detail/file caching**: reopening a skill is instant and cannot blank the
  *    pane with a spinner.
- *  - **local index**: `filters.installed === 'installed'` lists what is already
+ *  - **local management**: the InstalledSkills component independently lists what is already
  *    on disk (`fetchInstalled`) instead of asking the market, matching the
  *    contract's §5.3 behaviour.
  *
@@ -34,14 +34,12 @@ import type {
   SourceStatusInfo,
 } from '../market/types.ts'
 import {
-  fetchInstalled,
   fetchMarketList,
   fetchSkillDetail,
   fetchSkillFile,
   installSkill,
   isAbortError,
   uninstallSkill,
-  type InstalledSkillRecord,
 } from './api.ts'
 
 /** One remote page (the reference store's `PAGE_SIZE`). */
@@ -216,48 +214,6 @@ function mergeSourceStatus(
   return { ...sources, [source]: status }
 }
 
-/** Case-insensitive match over the fields the local index can search. */
-function matchesQuery(skill: NormalizedSkill, query: string): boolean {
-  if (query === '') return true
-  return (
-    skill.name.toLowerCase().includes(query) ||
-    skill.slug.toLowerCase().includes(query) ||
-    skill.summary.toLowerCase().includes(query) ||
-    skill.author.handle.toLowerCase().includes(query)
-  )
-}
-
-/**
- * Map one locally installed directory onto the card shape.
- *
- * `NormalizedSkill.source` is the two-value *market* union, so a directory with
- * no provenance sidecar (`source: 'local'`) has no truthful value there; it is
- * mapped onto the first market source purely to satisfy the display type. Its
- * `id` stays `local:<dir>`, so an uninstall attempt is rejected by the Host
- * (or by `parseMarketId`) rather than removing the wrong directory, and its
- * `securityStatus: 'unknown'` marks it as not market-audited in the UI.
- */
-function installedRecordToSkill(record: InstalledSkillRecord): NormalizedSkill {
-  return {
-    id: record.id,
-    source: record.source === 'local' ? 'clawhub' : record.source,
-    slug: record.slug,
-    name: record.name,
-    summary: record.summary ?? '',
-    author: { handle: '' },
-    stats: { downloads: 0 },
-    tags: [],
-    version: record.version,
-    securityStatus: 'unknown',
-    installState: 'installed',
-    installedInfo: {
-      version: record.version,
-      installedAt: record.installedAt,
-      dirName: record.dirName,
-    },
-  }
-}
-
 /** Copy the install-related fields of a fresh skill onto a cached detail. */
 function patchDetail(detail: NormalizedSkillDetail, updated: NormalizedSkill): NormalizedSkillDetail {
   return {
@@ -289,17 +245,6 @@ function createInternalController(): MarketControllerInternal {
   let inFlightCursor: string | null = null
   let inFlightFileKey: string | null = null
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
-
-  /**
-   * Raw local index behind the installed filter.
-   *
-   * Kept alongside `state.items` because that branch is searched *in place*: the
-   * index is already in memory, so a keystroke must not cost a round trip the way
-   * a remote search does. `installedIndexLoaded` distinguishes "not fetched yet"
-   * (a query change still needs the load) from "fetched and empty".
-   */
-  let installedRecords: InstalledSkillRecord[] = []
-  let installedIndexLoaded = false
 
   function commit(patch: Partial<MarketState>): void {
     state = { ...state, ...patch }
@@ -341,27 +286,6 @@ function createInternalController(): MarketControllerInternal {
     return true
   }
 
-  /** Project the cached local index through the current query, with no request. */
-  function commitInstalledIndex(extra: Partial<MarketState> = {}): void {
-    const query = state.filters.q.trim().toLowerCase()
-    commit({
-      ...extra,
-      items: installedRecords.map(installedRecordToSkill).filter((skill) => matchesQuery(skill, query)),
-      nextCursor: null,
-    })
-  }
-
-  /**
-   * After an install/uninstall the directory listing is the authority for the
-   * installed view, so re-read it when it is the view on screen.
-   */
-  function refreshInstalledIndexIfActive(): void {
-    if (state.filters.installed !== 'installed') return
-    // Until the fresh listing lands, the cached one may not be projected again.
-    installedIndexLoaded = false
-    void refresh()
-  }
-
   /**
    * Apply the Host's authoritative skill record after an install/uninstall.
    *
@@ -397,6 +321,8 @@ function createInternalController(): MarketControllerInternal {
    */
   async function refresh(): Promise<void> {
     cancelDebounce()
+    // A refresh also follows external local management changes.
+    detailCache.clear()
     const key = currentListKey()
     const running = inFlightList
     if (running !== null && running.key === key) return running.promise
@@ -413,15 +339,6 @@ function createInternalController(): MarketControllerInternal {
 
     const promise = (async () => {
       try {
-        if (filters.installed === 'installed') {
-          // Local index: what is already on disk, no upstream request.
-          const records = await fetchInstalled(controller.signal)
-          if (sequence !== listSequence) return
-          installedRecords = records
-          installedIndexLoaded = true
-          commitInstalledIndex({ loading: false })
-          return
-        }
         const result = await fetchMarketList(
           {
             q: filters.q.trim() || undefined,
@@ -501,12 +418,6 @@ function createInternalController(): MarketControllerInternal {
   function setQuery(q: string): void {
     commit({ filters: { ...state.filters, q } })
     cancelDebounce()
-    // The local index is searched in place: it is already in memory, so a
-    // keystroke must not cost a round trip (and must not re-list the directory).
-    if (state.filters.installed === 'installed' && installedIndexLoaded) {
-      commitInstalledIndex()
-      return
-    }
     debounceTimer = setTimeout(() => {
       debounceTimer = null
       void refresh()
@@ -652,9 +563,6 @@ function createInternalController(): MarketControllerInternal {
       const result = await installSkill(id)
       applySkillUpdate(result.skill)
       setNotice('installDone')
-      // The installed view is the local index: a brand-new directory is only
-      // visible once the Host has re-scanned it.
-      refreshInstalledIndexIfActive()
     } catch (error) {
       if (!isAbortError(error)) setNotice(errorMessage(error))
     } finally {
@@ -672,9 +580,6 @@ function createInternalController(): MarketControllerInternal {
       const result = await uninstallSkill(id)
       applySkillUpdate(result.skill)
       setNotice('uninstallDone')
-      // Same reason as install: the removed directory must not come back from a
-      // stale in-memory listing when the reader narrows the query.
-      refreshInstalledIndexIfActive()
     } catch (error) {
       if (!isAbortError(error)) setNotice(errorMessage(error))
     } finally {

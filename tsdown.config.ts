@@ -1,5 +1,5 @@
 /**
- * Browser client bundle for dsh-agent-teams, mirroring the DeepSeek Harness
+ * Browser client bundle for Skills Hub, mirroring the DeepSeek Harness
  * `clientBundle` protocol (packages/client/tsdown.client.ts):
  *
  * - CJS closure-factory artifact: `window.__ModuleLoader__.load({ id,
@@ -13,7 +13,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import { basename, dirname, resolve as resolvePath, sep } from 'node:path'
+import { basename, dirname, relative, resolve as resolvePath, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { transform } from 'lightningcss'
 import { defineConfig, type UserConfig } from 'tsdown'
@@ -26,7 +26,7 @@ const PLATFORM_MODULES = [
   '@deepseek-ai/dsh-client-ui-primitives',
 ]
 
-/** alpha.2 has no parser-preloaded runtime bundle. */
+/** This plugin needs only the 0.2.0-rc.2 platform seed entries. */
 const PRELOADED_CLIENT_EXTERNALS: string[] = []
 
 /** Externals resolved from the loader module table. */
@@ -42,6 +42,8 @@ const VENDORED_LIBRARY = /^@deepseek-ai\/(cosmokit|schemastery)(\/|$)/
 const GENERATED_REMOTE = /^@deepseek-ai\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
 
 /** Virtual-id wrapper keeping module CSS away from tsdown's own css pipeline. */
+const PROJECT_ROOT = dirname(fileURLToPath(import.meta.url))
+
 const CSS_VIRTUAL_PREFIX = '\0dsh-css:'
 const CSS_VIRTUAL_SUFFIX = '.mjs'
 
@@ -62,6 +64,9 @@ const config: UserConfig = {
   outDir: 'lib',
   format: 'cjs',
   platform: 'browser',
+  // tsdown defaults CJS output to node even for platform: browser.
+  // This CJS factory runs in Harness's browser module loader.
+  inputOptions: { platform: 'browser', resolve: { conditionNames: ['browser', 'import', 'default'], mainFields: ['browser', 'module', 'main'] } },
   dts: false,
   sourcemap: true,
   clean: false,
@@ -75,6 +80,16 @@ const config: UserConfig = {
     'import.meta.env': JSON.stringify({ MODE: process.env.NODE_ENV ?? 'production' }),
   },
   plugins: [{
+    name: 'dsh-trim-generated-whitespace',
+    generateBundle(_options, bundle) {
+      for (const output of Object.values(bundle)) {
+        if (output.type !== 'chunk') continue
+        // Dependency JSDoc can contain blank indented lines. Preserve line
+        // counts and every mapped token while keeping committed output clean.
+        output.code = output.code.replace(/^[\t ]+$/gm, '')
+      }
+    },
+  }, {
     name: 'dsh-client-bundle-purity',
     resolveId(source: string) {
       if (!source.startsWith('@deepseek-ai/')) return null
@@ -91,15 +106,16 @@ const config: UserConfig = {
     resolveId(source: string, importer: string | undefined) {
       if (!source.endsWith('.module.css')) return null
       const abs = importer !== undefined ? sourceAssetPath(source, importer) : source
-      return CSS_VIRTUAL_PREFIX + abs + CSS_VIRTUAL_SUFFIX
+      return CSS_VIRTUAL_PREFIX + relative(PROJECT_ROOT, abs).split(sep).join('/') + CSS_VIRTUAL_SUFFIX
     },
     async load(virtualId: string) {
       if (!virtualId.startsWith(CSS_VIRTUAL_PREFIX)) return null
-      const fileId = virtualId.slice(CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+      const relativeId = virtualId.slice(CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+      const fileId = resolvePath(PROJECT_ROOT, relativeId)
       this.addWatchFile(fileId)
       const source = readFileSync(fileId)
       const { code, exports: cssExports } = transform({
-        filename: fileId,
+        filename: relativeId,
         code: source,
         cssModules: { pattern: '[hash]_[local]' },
         minify: true,

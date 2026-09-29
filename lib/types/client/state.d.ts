@@ -15,7 +15,7 @@
  *    detail/file request per target.
  *  - **detail/file caching**: reopening a skill is instant and cannot blank the
  *    pane with a spinner.
- *  - **local index**: `filters.installed === 'installed'` lists what is already
+ *  - **local management**: the InstalledSkills component independently lists what is already
  *    on disk (`fetchInstalled`) instead of asking the market, matching the
  *    contract's §5.3 behaviour.
  *

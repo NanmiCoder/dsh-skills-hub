@@ -2,4 +2,4 @@
 # component: the profile keeps every bundle it already had.
 - insert:
     - id: skills-hub
-      name: dsh-skills-hub
+      name: "@nanmicoder/dsh-skills-hub"

@@ -1,121 +1,120 @@
-# Skills Hub
+<p align="right">
+  <strong>简体中文</strong> · <a href="./README_EN.md">English</a>
+</p>
 
-**A skills marketplace inside DeepSeek Harness.** Browse, search, preview and install third-party
-skills from [ClawHub](https://clawhub.ai) and [SkillHub](https://api.skillhub.cn) without leaving the
-DSH Web GUI. Installed skills land in your DSH skills directory and are picked up by the `skill`
-tool like any hand-written skill.
+<p align="center">
+  <img src="./assets/readme/hero-zh.png" width="100%" alt="Skills Hub：发现技能，装进你的工作流。3D 技能文档汇入蓝色收纳座的概念插画。">
+</p>
 
-## Features
+<p align="center">
+  <strong>DeepSeek Harness 的技能市场与本机技能管理器</strong><br>
+  浏览 ClawHub 与 SkillHub，读懂 SKILL.md，再安装到你的 Harness。
+</p>
 
-- **Two sources, one list.** ClawHub and SkillHub results are merged, deduplicated and tagged with
-  their origin; a SkillHub entry that mirrors a ClawHub skill collapses into the ClawHub original.
-- **Search and three filters** — free text, source, security status and install state.
-- **Preview before installing** — full `SKILL.md` rendered as Markdown, every file in the package
-  with size and language, the upstream security report when the source publishes one.
-- **Install / uninstall** from the panel, with a confirmation dialog that repeats the third-party
-  warning, size limits, atomic publish and no-clobber guarantees.
-- **Provenance is explicit.** Every installed skill carries a `.skills-hub.json` sidecar; the panel
-  only ever offers to remove skills it installed itself.
-- **Source health** is shown up front (`ok` / `degraded` / `failed` / `cached`), so an unreachable
-  registry is visible instead of looking like an empty marketplace.
+<p align="center">
+  <a href="#快速开始">快速开始</a> · <a href="./docs/COMPATIBILITY.md">兼容性</a> · <a href="./docs/RELEASE.md">发布指南</a> · <a href="./LICENSE">MIT</a>
+</p>
 
-## Install
+## 技能发现和本机管理，在同一个面板里
 
-Skills Hub is a DSH bundle: it installs into one profile and adds one row to that profile's plugin
-tree. Replace `<profile>` with the profile you actually run (`dsh plugin --help` documents the
-forwarder; `desktop` is the profile the macOS app boots).
+**Skills Hub** 把两个技能市场与本机用户技能放进 Harness 侧栏。无需在网站、下载目录和技能文件夹之间来回切换：搜索、查看文档、确认安装，再到「已安装技能」里统一管理。
+
+<p align="center">
+  <img src="./assets/readme/marketplace.png" width="100%" alt="Skills Hub 在 DeepSeek Harness 中的实际界面：技能卡片、搜索与筛选、来源健康状态，以及已安装技能入口。">
+</p>
+
+*实际 Harness 0.2.0-rc.2 界面；市场内容随上游更新。顶部 3D Hero 为概念插画。*
+
+| 你要做的事 | Skills Hub 怎么帮你 |
+| --- | --- |
+| **找一个技能** | 聚合 ClawHub 与 SkillHub，支持搜索和筛选；向下滚动自动加载更多。 |
+| **先看清，再安装** | 渲染 Markdown、表格和代码块，预览包内文件与上游安全报告；列表和详情都有骨架屏。 |
+| **整理已安装技能** | 搜索市场安装和本机用户技能，查看来源、实际路径与正文，再确认卸载。 |
+
+## 快速开始
+
+**插件 `0.0.1` · 宿主 `0.2.0-rc.2`**。面向 DeepSeek Harness 0.2.0 桌面端产品线；其他宿主版本尚未验证。[查看验收范围 →](./docs/COMPATIBILITY.md)
+
+在运行桌面端的 profile 中安装：
 
 ```sh
-# from this checkout (the package must be built first: pnpm install && pnpm build)
-dsh plugin --profile <profile> add file:/absolute/path/to/dsh-skills-hub
-
-# from a published package
-dsh plugin --profile <profile> add dsh-skills-hub
-
-# from a tagged Git commit (the repository commits its built lib/)
-dsh plugin --profile <profile> add github:<owner>/dsh-skills-hub#v0.1.0
+dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.1
 ```
 
-Then restart the profile (fully quit and reopen the app — closing the window is not enough) and open
-**Skills Hub** in the sidebar.
+完全退出并重新打开 Harness，在侧栏点击 **技能市场**。使用其他 profile 时，把 `desktop` 替换成对应名称。
 
-To remove it: `dsh plugin --profile <profile> remove dsh-skills-hub`.
+1. **浏览**：搜索关键词，或按来源、安全状态筛选。
+2. **预览**：打开技能，阅读概览和文件内容。
+3. **安装**：核对来源并确认；在「已安装技能」中查看、搜索或卸载。
 
-## Use
+> 包名必须带 `@nanmicoder/`。npm 上不带 scope 的 `dsh-skills-hub` 属于其他作者。
 
-1. Open **Skills Hub** in the sidebar. The entry sits with the other global panels and does not
-   change the current session.
-2. Search or filter. The list loads more as you scroll and merges both sources.
-3. Click a card for the detail page: overview, files, security report.
-4. **Install** → confirm → the skill appears in the installed list immediately and becomes available
-   to the agent through the `skill` tool.
+<details>
+<summary><strong>从源码安装</strong></summary>
 
-## Configuration
+需要 Node.js `^22.19.0 || >=24` 和 pnpm `10.33.0`。
 
-The plugin row accepts the usual loader `config` block. Every value has a default; only set what you
-need.
+```sh
+pnpm install --frozen-lockfile
+pnpm pack --pack-destination artifacts
+dsh plugin --profile desktop add ./artifacts/nanmicoder-dsh-skills-hub-0.0.1.tgz
+```
 
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `skillsRoot` | `null` | Where skills are installed. `null` resolves the profile's DSH skills directory. |
-| `clawhubBaseUrl` | `https://clawhub.ai` | ClawHub endpoint (point it at a mirror if the public one is blocked). |
-| `skillhubBaseUrl` | `https://api.skillhub.cn` | SkillHub endpoint. |
-| `timeoutMs` | `15000` | Per-request upstream timeout. |
-| `requestRetries` | `1` | Retries for network errors and 5xx responses. |
-| `allowUninstall` | `true` | Set `false` to make the panel read-only for removals. |
-| `pageSize` | `24` | Page size for the merged list. |
+同样需要完全重启 Harness。构建产物随源码保留，打包前会重新构建和检查。
+
+</details>
+
+## 已安装管理，路径清楚，操作明确
+
+列表覆盖配置的安装目录、`$DSH_HOME/skills` 与共享 agents 用户技能目录。目录式技能、平铺 Markdown 和符号链接都能识别；同名但不同路径的技能分别展示。
+
+- **确认后卸载**：展示将要删除的实际位置。
+- **链接只删链接**：保留它指向的原始技能文件。
+- **管理用户技能**：项目级和内置技能不在这个主机级列表中。
+
+安装过程不执行技能脚本，也不会覆盖已有目录。技能可能指示 agent 后续运行第三方代码；安全标签来自上游报告，不代表独立审计。请在安装前查看内容和发布者。
+
+<details>
+<summary><strong>配置与移除插件</strong></summary>
+
+默认配置即可使用。高级配置写在插件行中：
 
 ```yaml
 - id: skills-hub
-  name: dsh-skills-hub
+  name: '@nanmicoder/dsh-skills-hub'
   config:
     allowUninstall: false
     timeoutMs: 30000
 ```
 
-## Safety
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `skillsRoot` | `null` | 安装目录；默认是 Harness 用户技能目录。 |
+| `clawhubBaseUrl` | `https://clawhub.ai` | ClawHub API 地址。 |
+| `skillhubBaseUrl` | `https://api.skillhub.cn` | SkillHub API 地址。 |
+| `timeoutMs` | `15000` | 单次上游请求超时，单位毫秒。 |
+| `requestRetries` | `1` | 网络及服务器错误重试次数。 |
+| `allowUninstall` | `true` | 是否允许在面板卸载技能。 |
+| `pageSize` | `24` | 市场分页大小。 |
 
-Installing a skill runs third-party Markdown prose and, potentially, third-party scripts the skill
-tells the agent to run. Skills Hub is a delivery mechanism, not an audit: it shows the upstream
-security status and links the upstream report, and it refuses to overwrite or delete anything it did
-not install, but you are still trusting the publisher. Read the file list and the `SKILL.md` on the
-detail page before installing — the panel exists so that you can.
-
-Network behaviour: the host half talks only to the two configured endpoints; the browser half talks
-only to the plugin's own routes on the profile's own origin.
-
-## Development
-
-```sh
-pnpm install
-pnpm typecheck     # host program + client program
-pnpm build         # tsc (both programs) + client bundle (tsdown, purity gate + CSS modules)
-pnpm verify        # manifest coherence, client purity, then the test suite
-```
-
-Layout:
-
-```
-src/index.ts             host half: plugin entry, config, wiring
-src/web-routes.ts        /api/skills-hub/* (one prefix route, JSON, no-store)
-src/market/              provider aggregation: ClawHub, SkillHub, cache, install service
-src/skills/              skills directory resolution, installed index, provenance sidecar
-src/client/              browser half: sidebar entry + main panel
-src/client/components/   presentational components (CSS Modules, --dsw-* tokens)
-docs/CONTRACT.md         the frozen interface contract the halves are built against
-```
-
-The client half may import runtime values only from the platform module table (`react`,
-`@deepseek-ai/cordis`, `@deepseek-ai/dsh-client-ui-slots`, `@deepseek-ai/dsh-client-ui-primitives`,
-`@deepseek-ai/dsh-client-store`); everything else is a build error, and `pnpm verify` re-checks it.
-
-Local smoke test against a scratch profile:
+移除插件本身：
 
 ```sh
-dsh plugin --profile skills-hub-check add file:$PWD
-dsh --profile skills-hub-check --dump-config | grep -A3 skills-hub
+dsh plugin --profile desktop remove @nanmicoder/dsh-skills-hub
 ```
 
-## License
+这不会删除已安装的技能。文件扫描范围与接口见[实现约定](./docs/CONTRACT.md)。
 
-MIT.
+</details>
+
+## 开发与发布
+
+```sh
+pnpm install --frozen-lockfile
+pnpm check       # 类型、构建、回归测试与版本检查
+pnpm pack:check  # 另检查 npm 包内容及运行时依赖闭包
+```
+
+[贡献指南](./CONTRIBUTING.md) · [维护规范](./AGENTS.md) · [兼容性与验收](./docs/COMPATIBILITY.md) · [0.0.1 发布流程](./docs/RELEASE.md)
+
+MIT 许可证。详见 [LICENSE](./LICENSE)。

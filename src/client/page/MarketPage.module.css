@@ -101,3 +101,7 @@
     animation-duration: 2.4s;
   }
 }
+
+.navigation { display: flex; gap: 20px; padding: 0 28px; border-bottom: 1px solid var(--dsw-alias-border-l2, #e5e5e5); }
+.navigation button { padding: 14px 0; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--dsw-alias-label-secondary, #777); font: inherit; font-size: 13px; cursor: pointer; }
+.navigation button[aria-current] { color: var(--dsw-alias-label-primary, #222); border-bottom-color: currentColor; font-weight: 600; }

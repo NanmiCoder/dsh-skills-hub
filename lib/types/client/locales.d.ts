@@ -17,6 +17,18 @@ export declare const NS = "skillsHub";
  * consumer, including the components workstream).
  */
 declare const zhDictionary: {
+    installedTitle: string;
+    marketTab: string;
+    installedScope: string;
+    installedSearch: string;
+    refreshInstalled: string;
+    installedEmpty: string;
+    localSkill: string;
+    linkedSkill: string;
+    viewInstalled: string;
+    localUninstallDescription: string;
+    unlinkDescription: string;
+    uninstalling: string;
     panel: string;
     title: string;
     subtitle: string;

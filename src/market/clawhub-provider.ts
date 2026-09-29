@@ -640,8 +640,17 @@ export const clawhubProvider: MarketProvider = {
     }
     const files = usableFileEntries(rawFiles)
 
-    // ClawHub's description IS the SKILL.md content (frontmatter + body).
-    const rawDescription = asString(data.skill.description) ?? ''
+    // Some catalogue responses omit the document; retrieve SKILL.md rather
+    // than showing an empty overview for an otherwise installable skill.
+    let rawDescription = asString(data.skill.description) ?? ''
+    if (rawDescription.trim() === '') {
+      try {
+        rawDescription = (await clawhubProvider.fetchFile(slug, 'SKILL.md')).content
+      } catch {
+        // File delivery can fail independently of catalogue metadata.
+        rawDescription = asString(data.skill.summary) ?? ''
+      }
+    }
     let body = rawDescription
     let frontmatter: Record<string, unknown> | undefined
     if (rawDescription.startsWith('---')) {

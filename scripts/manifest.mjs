@@ -77,7 +77,7 @@ export async function checkManifest({ requireBuild = false } = {}) {
   const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
   record('package.json parses', true, `${pkg.name}@${pkg.version}`)
 
-  record('package name matches the repository', pkg.name === 'dsh-skills-hub', String(pkg.name))
+  record('package name matches the repository', pkg.name === '@nanmicoder/dsh-skills-hub', String(pkg.name))
   record('type is module', pkg.type === 'module', String(pkg.type))
   record('no runtime dependencies', pkg.dependencies === undefined, JSON.stringify(pkg.dependencies ?? {}))
   record('engines allow the installed Node', /(\^22\.19|\^22\.|>=22|>=24)/.test(pkg.engines?.node ?? ''), String(pkg.engines?.node))
@@ -150,7 +150,11 @@ export async function checkManifest({ requireBuild = false } = {}) {
   if (requireBuild) {
     const clientBundle = join(projectRoot, 'lib', 'client.js')
     if (await exists(clientBundle)) {
-      const head = (await readFile(clientBundle, 'utf8')).slice(0, 400)
+      const bundle = await readFile(clientBundle, 'utf8')
+      const externalRequires = [...bundle.matchAll(/\brequire\(\s*['"]([^'"]+)['"]\s*\)/g)].map((match) => match[1])
+      const unknown = externalRequires.filter((id) => !PLATFORM_MODULES.has(id))
+      record('browser bundle requires only host platform modules', unknown.length === 0, [...new Set(unknown)].join(', '))
+      const head = bundle.slice(0, 400)
       record('client bundle registers the package id', head.includes('__ModuleLoader__') && head.includes(pkg.name), 'lib/client.js banner')
     } else {
       record('lib/client.js exists', false, 'run pnpm build')

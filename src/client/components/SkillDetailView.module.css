@@ -395,3 +395,36 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* Markdown owns its typography, including when the host has no renderer CSS. */
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown h1, .markdown h2, .markdown h3 { line-height: 1.35; margin: 1.4em 0 .6em; }
+.markdown h1 { font-size: 1.7em; }
+.markdown h2 { font-size: 1.4em; }
+.markdown h3 { font-size: 1.15em; }
+.markdown p, .markdown ul, .markdown ol { margin: .75em 0; }
+.markdown ul, .markdown ol { padding-left: 1.7em; }
+.markdown a { color: var(--dsw-alias-state-business-primary, #4176e6); text-decoration: underline; }
+.markdown pre { padding: 14px; overflow-x: auto; border-radius: 8px; background: var(--dsw-alias-bg-layer-2, #f2f3f5); }
+.markdown code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+.markdown :not(pre) > code { padding: 2px 5px; border-radius: 4px; background: var(--dsw-alias-bg-layer-2, #f2f3f5); }
+.markdown blockquote { margin: 1em 0; padding-left: 14px; border-left: 3px solid var(--dsw-alias-border-l2, #0000001a); color: var(--dsw-alias-label-secondary, #61666b); }
+.markdown table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.markdown th, .markdown td { padding: 7px 10px; border: 1px solid var(--dsw-alias-border-l2, #0000001a); text-align: left; }
+.markdown img { max-width: 100%; height: auto; }
+.markdown hr { margin: 20px 0; border: 0; border-top: 1px solid var(--dsw-alias-border-l2, #0000001a); }
+.skeletonAvatar, .skeletonTitle, .skeletonLine {
+  display: block;
+  border-radius: 5px;
+  background: var(--dsw-alias-border-l2, #0000001a);
+  animation: skeletonPulse 1.6s ease-in-out infinite alternate;
+}
+.skeletonAvatar { flex: none; width: 84px; height: 84px; border-radius: 18px; }
+.skeletonTitle { width: 55%; height: 28px; margin: 8px 0 20px; }
+.skeletonLine { width: 100%; height: 13px; margin: 16px 0; }
+.skeletonLine:nth-child(3n) { width: 72%; }
+@keyframes skeletonPulse { to { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) {
+  .skeletonAvatar, .skeletonTitle, .skeletonLine { animation: none; }
+}

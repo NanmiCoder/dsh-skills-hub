@@ -79,6 +79,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     clawhubListPayload: null,
     clawhubSearchPayload: null,
     clawhubDetailMode: 'ok', // 'ok' | '404' | '409' (ambiguous slug)
+    clawhubOmitDescription: false,
     clawhubVersionStatus: 200,
     clawhubFileBody: null,
     clawhubFileOversize: false,
@@ -126,7 +127,9 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
         return replyJson(res, 409, { code: 'AMBIGUOUS_SKILL_SLUG', slug: 'git', matches: [{ ownerHandle: 'pskoett' }] })
       }
       if (upstream.clawhubDetailMode === '404') return replyJson(res, 404, { error: 'skill not found' })
-      return replyJson(res, 200, fixtures.clawhubDetail)
+      const detail = structuredClone(fixtures.clawhubDetail)
+      if (upstream.clawhubOmitDescription) delete detail.skill.description
+      return replyJson(res, 200, detail)
     }
     if (path === '/api/v1/skills/git/versions/1.0.8') {
       if (upstream.clawhubVersionStatus !== 200) return replyJson(res, upstream.clawhubVersionStatus, { error: 'no such version' })
@@ -564,6 +567,15 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     assert.deepEqual(requests, [])
     assert.equal(cached.sourceStatus.fromCache, true)
     assert.equal(cached.skill.id, 'clawhub:git')
+  })
+
+  await subtest('clawhub detail(): fetches Markdown when the catalogue omits description', async () => {
+    upstream.clawhubOmitDescription = true
+    upstream.clawhubFileBody = '---\nname: Git\n---\n# Git instructions\n\n**Readable** body\n'
+    const { skill } = await getMarketSkillDetail('clawhub', 'git')
+    assert.match(skill.description, /^# Git instructions/)
+    assert.equal(skill.descriptionFrontmatter.name, 'Git')
+    assert.ok(requests.some((request) => request.path === '/api/v1/skills/git/file'))
   })
 
   await subtest('clawhub detail(): a failing version endpoint is best-effort', async () => {

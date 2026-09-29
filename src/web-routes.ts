@@ -30,6 +30,7 @@ import {
   listMarketSkills,
   type ListMarketSkillsParams,
 } from './market/market-service.ts'
+import { readInstalledSkill, removeInstalledSkill } from './skills/management.ts'
 import { scanInstalledSkills } from './skills/installed.ts'
 import { resolveSkillsScanRoots } from './skills/root.ts'
 import {
@@ -376,7 +377,7 @@ async function handleFile(source: MarketSource, slug: string, url: URL, res: Ser
  */
 async function handleInstalled(deps: SkillsHubRoutesDeps, res: ServerResponse): Promise<void> {
   const roots = await resolveSkillsScanRoots(await deps.skillsRoot())
-  sendJson(res, 200, { items: await scanInstalledSkills(roots) })
+  sendJson(res, 200, { items: (await scanInstalledSkills(roots)).map(item => ({ ...item, removable: deps.allowUninstall() })) })
 }
 
 async function handleInstall(req: IncomingMessage, deps: SkillsHubRoutesDeps, res: ServerResponse): Promise<void> {
@@ -432,6 +433,21 @@ async function handle(
   if (head === 'status' && segments.length === 1) {
     requireMethod(method, 'GET')
     await handleStatus(res)
+    return
+  }
+  if (head === 'installed' && segments.length === 2 && second === 'detail') {
+    requireMethod(method, 'GET')
+    const roots = await resolveSkillsScanRoots(await deps.skillsRoot())
+    sendJson(res, 200, await readInstalledSkill(roots, url.searchParams.get('key') ?? ''))
+    return
+  }
+  if (head === 'installed' && segments.length === 2 && second === 'uninstall') {
+    requireMethod(method, 'POST')
+    const body = await readJsonBody(req)
+    const roots = await resolveSkillsScanRoots(await deps.skillsRoot())
+    const item = await removeInstalledSkill(roots, typeof body['key'] === 'string' ? body['key'] : '', deps.allowUninstall())
+    await deps.rescan().catch(() => undefined)
+    sendJson(res, 200, { ok: true, removedPath: item.dirPath, item })
     return
   }
   if (head === 'installed' && segments.length === 1) {

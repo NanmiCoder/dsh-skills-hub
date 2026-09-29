@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { MarkdownView } from './MarkdownView.tsx'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Button,
   CodeBlock,
-  MarkdownText,
   SegmentedTabs,
   StateDot,
   fileSizeText,
@@ -65,11 +65,8 @@ function Fact(props: { label: string; children: ReactNode }): JSX.Element {
  * and the file contents all live in `MarketState`, so switching tabs or
  * re-opening a skill does not lose its place.
  *
- * Overview renders the SKILL.md body with the primitives' `MarkdownText`,
- * which is a plain prop-driven component — it needs `labels`, not a provider,
- * so the contract's fallback ("a local markdown-lite renderer") was not
- * necessary. Frontmatter is shown as structure rather than markdown, because a
- * dozen short YAML fields rendered as prose is a wall of bold headings.
+ * The bundled GFM renderer handles catalogue Markdown without relying on a
+ * host renderer delegate. Raw HTML is disabled and URLs use its safe default.
  */
 export function SkillDetailView(props: {
   detail: NormalizedSkillDetail
@@ -102,13 +99,6 @@ export function SkillDetailView(props: {
       resetTimer.current = setTimeout(() => setCopied(false), COPIED_RESET_MS)
     })
   }, [state.file])
-
-  // The renderer caches frozen blocks against the label object's identity, so
-  // it is memoized per translate function rather than rebuilt every render.
-  const markdownLabels = useMemo(
-    () => ({ code: { copyLabel: t('copy'), copiedLabel: t('copied') }, footnotes: t('footnotes') }),
-    [t],
-  )
 
   const tabs: [SegmentedTab<'overview' | 'files'>, ...SegmentedTab<'overview' | 'files'>[]] = [
     { value: 'overview', label: t('overview'), id: `${TAB_ID}-overview`, panelId: `${PANEL_ID}-overview` },
@@ -205,9 +195,7 @@ export function SkillDetailView(props: {
               aria-labelledby={`${TAB_ID}-overview`}
             >
               {detail.description.trim() !== '' ? (
-                <div className={styles.markdown}>
-                  <MarkdownText text={detail.description} labels={markdownLabels} variant="body" />
-                </div>
+                <MarkdownView content={detail.description} />
               ) : (
                 detail.summary !== '' && <p className={styles.summary}>{detail.summary}</p>
               )}
@@ -340,6 +328,42 @@ export function SkillDetailView(props: {
             </dl>
           </div>
         </aside>
+      </div>
+    </div>
+  )
+}
+
+/** Keeps the detail layout stable while its network request is in flight. */
+export function SkillDetailSkeleton({ onBack }: { onBack: () => void }): JSX.Element {
+  const t = useT()
+  return (
+    <div className={styles.detail} aria-busy="true">
+      <div className={styles.back}>
+        <Button variant="ghost" size="sm" icon={<ArrowLeftIcon size={16} />} onClick={onBack}>{t('back')}</Button>
+      </div>
+      <div role="status" aria-label={t('loading')}>
+        <div aria-hidden="true">
+          <div className={styles.header}>
+            <span className={styles.skeletonAvatar} />
+            <div className={styles.headerText}>
+              <span className={styles.skeletonTitle} />
+              <span className={styles.skeletonLine} />
+              <span className={styles.skeletonLine} />
+            </div>
+          </div>
+          <div className={styles.columns} style={{ marginTop: 24 }}>
+            <div className={styles.main}>
+              <div className={styles.panel}>
+                {Array.from({ length: 10 }, (_, index) => <span className={styles.skeletonLine} key={index} />)}
+              </div>
+            </div>
+            <div className={styles.rail}>
+              <div className={styles.panel}>
+                {Array.from({ length: 5 }, (_, index) => <span className={styles.skeletonLine} key={index} />)}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

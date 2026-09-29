@@ -7,14 +7,15 @@ import type { MarketController, MarketState } from '../state.ts';
  * and the file contents all live in `MarketState`, so switching tabs or
  * re-opening a skill does not lose its place.
  *
- * Overview renders the SKILL.md body with the primitives' `MarkdownText`,
- * which is a plain prop-driven component — it needs `labels`, not a provider,
- * so the contract's fallback ("a local markdown-lite renderer") was not
- * necessary. Frontmatter is shown as structure rather than markdown, because a
- * dozen short YAML fields rendered as prose is a wall of bold headings.
+ * The bundled GFM renderer handles catalogue Markdown without relying on a
+ * host renderer delegate. Raw HTML is disabled and URLs use its safe default.
  */
 export declare function SkillDetailView(props: {
     detail: NormalizedSkillDetail;
     state: MarketState;
     controller: MarketController;
+}): JSX.Element;
+/** Keeps the detail layout stable while its network request is in flight. */
+export declare function SkillDetailSkeleton({ onBack }: {
+    onBack: () => void;
 }): JSX.Element;

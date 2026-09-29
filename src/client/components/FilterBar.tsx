@@ -7,7 +7,7 @@ import styles from './FilterBar.module.css'
 /** Option order for each select; the values are the frozen filter unions. */
 const SOURCE_OPTIONS: readonly MarketFilters['source'][] = ['all', 'clawhub', 'skillhub']
 const SECURITY_OPTIONS: readonly MarketFilters['security'][] = ['all', 'verified', 'benign', 'unknown', 'flagged']
-const INSTALLED_OPTIONS: readonly MarketFilters['installed'][] = ['all', 'installed', 'installable']
+const INSTALLED_OPTIONS: readonly MarketFilters['installed'][] = ['all', 'installable']
 
 /**
  * Search field plus the three catalogue filters.

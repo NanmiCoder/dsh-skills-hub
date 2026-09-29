@@ -22,6 +22,9 @@ import type { MarketFileContent, MarketListResult, MarketSource, NormalizedSkill
  * single source of truth.
  */
 export interface InstalledSkillRecord {
+    key: string;
+    linked: boolean;
+    removable: boolean;
     /** `source:slug` when the provenance sidecar exists, else `local:<dir>`. */
     id: string;
     source: MarketSource | 'local';
@@ -90,4 +93,14 @@ export declare function installSkill(id: string): Promise<{
 export declare function uninstallSkill(id: string): Promise<{
     removedPath: string;
     skill: NormalizedSkill;
+}>;
+/** Preview the exact local copy without consulting a market provider. */
+export declare function fetchInstalledDetail(key: string, signal?: AbortSignal): Promise<{
+    item: InstalledSkillRecord;
+    markdown: string;
+}>;
+/** Remove a specifically selected local entry after the management UI confirmation. */
+export declare function removeInstalled(key: string): Promise<{
+    item: InstalledSkillRecord;
+    removedPath: string;
 }>;

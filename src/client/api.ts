@@ -41,6 +41,9 @@ const API_BASE = '/api/skills-hub'
  * single source of truth.
  */
 export interface InstalledSkillRecord {
+  key: string
+  linked: boolean
+  removable: boolean
   /** `source:slug` when the provenance sidecar exists, else `local:<dir>`. */
   id: string
   source: MarketSource | 'local'
@@ -252,4 +255,14 @@ export async function installSkill(id: string): Promise<{ installedPath: string;
 export async function uninstallSkill(id: string): Promise<{ removedPath: string; skill: NormalizedSkill }> {
   const payload = await postJson<{ ok: boolean; removedPath: string; skill: NormalizedSkill }>('/uninstall', { id })
   return { removedPath: payload.removedPath, skill: payload.skill }
+}
+
+/** Preview the exact local copy without consulting a market provider. */
+export function fetchInstalledDetail(key: string, signal?: AbortSignal): Promise<{ item: InstalledSkillRecord; markdown: string }> {
+  return getJson(`/installed/detail?key=${encodeURIComponent(key)}`, signal)
+}
+
+/** Remove a specifically selected local entry after the management UI confirmation. */
+export function removeInstalled(key: string): Promise<{ item: InstalledSkillRecord; removedPath: string }> {
+  return postJson('/installed/uninstall', { key })
 }

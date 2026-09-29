@@ -12,14 +12,15 @@
  *
  * A directory is *managed* when it carries the provenance sidecar
  * ({@link INSTALL_META_FILE}) written by the installer. Nothing else in the tree
- * is ever mutated or removed by this plugin; the sidecar is the only proof of
- * ownership, so a hand-made skill with the same name is reported as a conflict
- * instead of being overwritten.
+ * is overwritten by the market installer; local entries can be explicitly
+ * removed through the installed-management endpoint after user confirmation.
  */
 
 import * as fs from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import type { Dirent } from 'node:fs'
 import * as path from 'node:path'
+import { readBoundedText } from './read-text.ts'
 import type { InstalledLookup } from '../market/market-service.ts'
 import { MARKET_SOURCES, skillId, type MarketSource } from '../market/types.ts'
 
@@ -43,6 +44,11 @@ export interface InstalledMetaFile {
 }
 
 export interface InstalledSkillRecord {
+  /** Opaque identity of this exact filesystem entry (duplicates remain addressable). */
+  key: string
+  /** Symlink removal only unlinks this entry, never its target. */
+  linked: boolean
+  removable: boolean
   /** `source:slug` when the sidecar provenance file exists, else `local:<dir>` */
   id: string
   source: MarketSource | 'local'
@@ -222,7 +228,7 @@ function parseFrontmatter(markdown: string): SkillFrontmatter {
 /** Read a text file, returning `undefined` for anything unreadable. */
 async function readTextIfExists(filePath: string): Promise<string | undefined> {
   try {
-    return await fs.readFile(filePath, 'utf-8')
+    return (await readBoundedText(filePath, 64 * 1024)).text
   } catch {
     return undefined
   }
@@ -230,10 +236,10 @@ async function readTextIfExists(filePath: string): Promise<string | undefined> {
 
 /** Read and parse a JSON file, returning `undefined` for absent or invalid content. */
 async function readJsonIfExists(filePath: string): Promise<unknown> {
-  const raw = await readTextIfExists(filePath)
-  if (raw === undefined) return undefined
   try {
-    return JSON.parse(raw) as unknown
+    const result = await readBoundedText(filePath, 2 * 1024 * 1024)
+    if (result.truncated) return undefined
+    return JSON.parse(result.text) as unknown
   } catch {
     return undefined
   }
@@ -255,14 +261,16 @@ async function measureDirectory(dirPath: string): Promise<{ bytes: number; fileC
   while (pending.length > 0 && visited < MAX_WALK_ENTRIES) {
     const current = pending.pop()
     if (current === undefined) break
-    let entries: Dirent[]
+    let entries: import('node:fs').Dir
     try {
-      entries = await fs.readdir(current, { withFileTypes: true })
+      // A directory replaced by a symlink after enumeration is not followed.
+      if (current !== dirPath && !(await fs.lstat(current)).isDirectory()) continue
+      entries = await fs.opendir(current)
     } catch {
       continue
     }
-    for (const entry of entries) {
-      visited++
+    for await (const entry of entries) {
+      if (visited++ >= MAX_WALK_ENTRIES) break
       const entryPath = path.join(current, entry.name)
       if (entry.isDirectory()) {
         pending.push(entryPath)
@@ -271,9 +279,8 @@ async function measureDirectory(dirPath: string): Promise<{ bytes: number; fileC
       if (!entry.isFile()) continue
       if (current === dirPath && entry.name === INSTALL_META_FILE) continue
       try {
-        const stats = await fs.stat(entryPath)
-        bytes += stats.size
-        fileCount++
+        const stats = await fs.lstat(entryPath)
+        if (stats.isFile()) { bytes += stats.size; fileCount++ }
       } catch {
         // Raced with a concurrent removal — count what is still there.
       }
@@ -291,6 +298,9 @@ async function readDirectorySkill(rootPath: string, dirName: string): Promise<In
   const frontmatter = parseFrontmatter(markdown)
   const measured = await measureDirectory(dirPath)
   const shared = {
+    key: installedEntryKey(dirPath),
+    linked: false,
+    removable: true,
     name: frontmatter.name ?? dirName,
     dirName,
     dirPath,
@@ -333,6 +343,9 @@ async function readFlatSkill(rootPath: string, fileName: string): Promise<Instal
     // Raced with a concurrent removal.
   }
   return {
+    key: installedEntryKey(filePath),
+    linked: false,
+    removable: true,
     id: `local:${dirName}`,
     source: 'local',
     slug: dirName,
@@ -341,7 +354,7 @@ async function readFlatSkill(rootPath: string, fileName: string): Promise<Instal
     dirPath: filePath,
     ...(frontmatter.description === undefined ? {} : { summary: summarize(frontmatter.description) }),
     ...(frontmatter.version === undefined ? {} : { version: frontmatter.version }),
-    // A flat skill can never carry a sidecar, so it is never ours to remove.
+    // A flat skill has no market provenance sidecar.
     managed: false,
     bytes,
     fileCount: markdown === '' ? 0 : 1,
@@ -351,19 +364,17 @@ async function readFlatSkill(rootPath: string, fileName: string): Promise<Instal
 /**
  * Scan every root for installed skills, most specific root first.
  *
- * A skill id found in an earlier root wins: the installed lookup is about
- * "present anywhere the harness will load it from", and the first root is the
- * one this plugin manages. Dot-prefixed entries are skipped — DSH's own
+ * Each filesystem entry remains individually addressable for management; the
+ * market lookup separately gives earlier roots precedence. Dot-prefixed entries are skipped — DSH's own
  * filesystem provider skips `.system` in the user-dsh root, and the installer's
  * staging/trash directories are dot-prefixed so no scanner ever sees a
  * half-published skill.
  *
  * @param roots - absolute skill roots, most specific first (see `resolveSkillsScanRoots`).
- * @returns one record per distinct skill id, in scan order.
+ * @returns one record per filesystem entry, in scan order.
  */
 export async function scanInstalledSkills(roots: string[]): Promise<InstalledSkillRecord[]> {
   const records: InstalledSkillRecord[] = []
-  const seen = new Set<string>()
   for (const root of roots) {
     const resolvedRoot = path.resolve(root)
     let entries: Dirent[]
@@ -376,13 +387,15 @@ export async function scanInstalledSkills(roots: string[]): Promise<InstalledSki
     entries.sort((left, right) => left.name.localeCompare(right.name))
     for (const entry of entries) {
       if (entry.name.startsWith('.')) continue
-      const record = entry.isDirectory()
+      const entryPath = path.join(resolvedRoot, entry.name)
+      const kind = entry.isSymbolicLink() ? await fs.stat(entryPath).catch(() => undefined) : entry
+      const record = kind?.isDirectory()
         ? await readDirectorySkill(resolvedRoot, entry.name)
-        : entry.isFile() && entry.name.endsWith('.md')
+        : kind?.isFile() && entry.name.endsWith('.md')
           ? await readFlatSkill(resolvedRoot, entry.name)
           : undefined
-      if (record === undefined || seen.has(record.id)) continue
-      seen.add(record.id)
+      if (record === undefined) continue
+      record.linked = entry.isSymbolicLink()
       records.push(record)
     }
   }
@@ -422,7 +435,7 @@ export async function readSkillHeadline(
  */
 export function installedLookupFrom(records: InstalledSkillRecord[]): InstalledLookup {
   const byId = new Map<string, InstalledSkillRecord>()
-  for (const record of records) byId.set(record.id, record)
+  for (const record of records) if (!byId.has(record.id)) byId.set(record.id, record)
   return {
     has(id: string): boolean {
       return byId.has(id)
@@ -437,4 +450,9 @@ export function installedLookupFrom(records: InstalledSkillRecord[]): InstalledL
       }
     },
   }
+}
+
+/** Path-derived identifiers never expose a caller-controlled filesystem path. */
+export function installedEntryKey(entryPath: string): string {
+  return createHash('sha256').update(path.resolve(entryPath)).digest('hex')
 }

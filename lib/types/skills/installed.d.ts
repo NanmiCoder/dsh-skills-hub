@@ -12,9 +12,8 @@
  *
  * A directory is *managed* when it carries the provenance sidecar
  * ({@link INSTALL_META_FILE}) written by the installer. Nothing else in the tree
- * is ever mutated or removed by this plugin; the sidecar is the only proof of
- * ownership, so a hand-made skill with the same name is reported as a conflict
- * instead of being overwritten.
+ * is overwritten by the market installer; local entries can be explicitly
+ * removed through the installed-management endpoint after user confirmation.
  */
 import type { InstalledLookup } from '../market/market-service.ts';
 import { type MarketSource } from '../market/types.ts';
@@ -39,6 +38,11 @@ export interface InstalledMetaFile {
     }>;
 }
 export interface InstalledSkillRecord {
+    /** Opaque identity of this exact filesystem entry (duplicates remain addressable). */
+    key: string;
+    /** Symlink removal only unlinks this entry, never its target. */
+    linked: boolean;
+    removable: boolean;
     /** `source:slug` when the sidecar provenance file exists, else `local:<dir>` */
     id: string;
     source: MarketSource | 'local';
@@ -75,15 +79,14 @@ export declare function parseInstalledMeta(value: unknown): InstalledMetaFile | 
 /**
  * Scan every root for installed skills, most specific root first.
  *
- * A skill id found in an earlier root wins: the installed lookup is about
- * "present anywhere the harness will load it from", and the first root is the
- * one this plugin manages. Dot-prefixed entries are skipped — DSH's own
+ * Each filesystem entry remains individually addressable for management; the
+ * market lookup separately gives earlier roots precedence. Dot-prefixed entries are skipped — DSH's own
  * filesystem provider skips `.system` in the user-dsh root, and the installer's
  * staging/trash directories are dot-prefixed so no scanner ever sees a
  * half-published skill.
  *
  * @param roots - absolute skill roots, most specific first (see `resolveSkillsScanRoots`).
- * @returns one record per distinct skill id, in scan order.
+ * @returns one record per filesystem entry, in scan order.
  */
 export declare function scanInstalledSkills(roots: string[]): Promise<InstalledSkillRecord[]>;
 /**
@@ -110,3 +113,5 @@ export declare function readSkillHeadline(skillFile: string): Promise<{
  * @returns the lookup W1's `setInstalledLookup()` expects.
  */
 export declare function installedLookupFrom(records: InstalledSkillRecord[]): InstalledLookup;
+/** Path-derived identifiers never expose a caller-controlled filesystem path. */
+export declare function installedEntryKey(entryPath: string): string;

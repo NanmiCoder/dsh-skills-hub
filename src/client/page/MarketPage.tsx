@@ -13,13 +13,14 @@
  * presentational components free of slot props (contract §5.4).
  */
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { MarketSource } from '../../market/types.ts'
 import { InstallConfirmDialog } from '../components/InstallConfirmDialog.tsx'
+import { InstalledSkills } from '../components/InstalledSkills.tsx'
 import { MarketHome } from '../components/MarketHome.tsx'
-import { SkillDetailView } from '../components/SkillDetailView.tsx'
+import { SkillDetailView, SkillDetailSkeleton } from '../components/SkillDetailView.tsx'
 import { LocaleProvider, useT, type Translate } from '../locale-context.tsx'
 import { NS } from '../locales.ts'
 import {
@@ -48,6 +49,7 @@ export function MarketPage(props: MarketPageProps): JSX.Element {
 
 function MarketPageSurface({ controller }: { controller: MarketController }): JSX.Element {
   const t = useT()
+  const [section, setSection] = useState<'market' | 'installed'>('market')
   const state = controller.state
   const detailId = state.view.kind === 'detail' ? state.view.id : null
 
@@ -63,11 +65,19 @@ function MarketPageSurface({ controller }: { controller: MarketController }): JS
 
   return (
     <div className={styles.panel}>
+      <nav className={styles.navigation} aria-label={t('panel')}>
+        <button type="button" aria-current={section === 'market' ? 'page' : undefined} onClick={() => setSection('market')}>{t('marketTab')}</button>
+        <button type="button" aria-current={section === 'installed' ? 'page' : undefined} onClick={() => setSection('installed')}>{t('installedTitle')}</button>
+      </nav>
       <div className={styles.body}>
-        {state.view.kind === 'home' ? (
+        {section === 'installed' ? (
+          <InstalledSkills onChanged={() => { controller.closeDetail(); void controller.refresh() }} />
+        ) : state.view.kind === 'home' ? (
           <MarketHome state={state} controller={controller} />
         ) : state.detail !== null ? (
           <SkillDetailView detail={state.detail} state={state} controller={controller} />
+        ) : state.detailError === null ? (
+          <SkillDetailSkeleton onBack={() => controller.closeDetail()} />
         ) : (
           <div className={styles.placeholder} role={state.detailError === null ? 'status' : 'alert'}>
             {state.detailError === null ? <span className={styles.spinner} aria-hidden="true" /> : null}
@@ -130,7 +140,7 @@ function noticeText(t: Translate, notice: string): string {
  */
 function confirmSkillOf(state: MarketState, id: string): ConfirmSkill {
   const skill =
-    state.items.find((item) => item.id === id) ?? (state.detail !== null && state.detail.id === id ? state.detail : null)
+    (state.detail !== null && state.detail.id === id ? state.detail : null) ?? state.items.find((item) => item.id === id) ?? null
   if (skill !== null) {
     return {
       id: skill.id,
