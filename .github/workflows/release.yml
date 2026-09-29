@@ -1,39 +1,98 @@
-name: Release
+name: Publish Package
 on:
-  release:
-    types: [published]
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Package version to publish
+        required: true
+        type: string
 permissions:
   contents: read
-  id-token: write
 concurrency:
   group: npm-release
   cancel-in-progress: false
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
-    environment: npm
+    strategy:
+      matrix:
+        node: ['22.19.0', '24']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.release.tag_name }}
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: actions/setup-node@v6
         with:
-          node-version: '24'
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - run: npm install --global pnpm@10.33.0
       - run: pnpm install --frozen-lockfile
-      - run: pnpm pack:check
-      - name: Check release semantics
+      - name: Validate release identity
         run: node scripts/release-check.mjs
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', inputs.version) }}
+      - run: pnpm pack:check
       - name: Check registry ownership and version
-        id: registry
-        run: node scripts/registry-preflight.mjs --allow-existing-commit
-      - name: Publish
-        if: steps.registry.outputs.already_published != 'true'
-        run: npm publish --access public
+        run: node scripts/registry-preflight.mjs
+      - name: Pack verified build
+        if: matrix.node == '24'
+        run: |
+          mkdir -p candidate
+          npm pack --ignore-scripts --pack-destination candidate
+          cd candidate
+          sha256sum *.tgz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: matrix.node == '24'
+        with:
+          name: npm-candidate
+          path: candidate/
+          if-no-files-found: error
+          retention-days: 30
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: npm install --global npm@11.19.0
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-candidate
+          path: candidate
+      - name: Verify candidate checksum
+        working-directory: candidate
+        run: sha256sum --check SHA256SUMS
+      - name: Publish verified candidate
+        run: npm publish candidate/*.tgz --ignore-scripts --access public --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  release:
+    needs: publish
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --draft=false --latest --notes-file "release-notes/$RELEASE_TAG.md"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --title "Skills Hub $RELEASE_TAG" --notes-file "release-notes/$RELEASE_TAG.md"
+          fi

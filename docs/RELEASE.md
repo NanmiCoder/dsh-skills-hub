@@ -9,29 +9,15 @@ Package: `@nanmicoder/dsh-skills-hub`. Repository: `NanmiCoder/dsh-skills-hub`. 
 3. Review `git diff`, generated `lib/`, package contents and release notes. Commit source and build artifacts together. Never include credentials, profiles or acceptance-home contents.
 4. Confirm npm account permission for the `@nanmicoder` scope. The unscoped name is owned by someone else. Changing GitHub visibility alone does not grant npm permissions.
 
-## Manual publication
+## GitHub Actions publication
 
-After the repository is public and the release commit is approved:
+Publication runs online in `.github/workflows/release.yml`, matching the AgentTeams release model. Push `v0.0.1` to trigger it, or dispatch the workflow with an explicit version. Both Node 22.19 and 24 must pass validation. The Node 24 job uploads the built tarball and SHA-256 checksum; the publication job verifies and publishes that exact artifact using npm 11.19.0. It does not rebuild during publication. A GitHub Release is published only after npm succeeds.
 
-```sh
-pnpm install --frozen-lockfile
-pnpm pack:check
-node scripts/registry-preflight.mjs
-npm whoami
-npm publish --access public
-```
+Configure npm Trusted Publishing for GitHub owner `NanmiCoder`, repository `dsh-skills-hub`, workflow `release.yml`, environment `npm`, allowing direct publication. OIDC uses `id-token: write`; routine releases need no local npm login and no stored npm token. The existing AgentTeams trust binding is package-specific and does not authorize this new package.
 
-`prepublishOnly` rebuilds and verifies the package. `prepack` also guards direct `npm pack`/`pnpm pack`. `pack:check` uses an internal `--ignore-scripts` pack only after the complete check has succeeded, avoiding recursion.
+For a brand-new package, npm requires an initial publication before its trusted publisher can be configured. If initial publication uses a short-lived granular token, place it only in this repository's `npm` environment as `NPM_TOKEN`, publish through the same Action, then remove/revoke the bootstrap token after configuring OIDC. Never commit or print credentials. npm may require browser-based security-key verification for these account operations.
 
-Create the matching Git tag and GitHub Release (`v0.0.1`, not prerelease), attaching `release-notes/v0.0.1.md`. The release workflow recognizes a version already published from the exact same Git commit and skips duplicate publication. A version associated with a different commit is rejected; npm versions are immutable. Publish only from a clean, committed release checkout.
-
-## GitHub publication workflow
-
-The repository environment is `npm`. For automated publication, configure npm Trusted Publishing for GitHub owner `NanmiCoder`, repository `dsh-skills-hub`, workflow `release.yml`, environment `npm`, allowing direct publication. The workflow grants `id-token: write` and runs Node 24 with an OIDC-capable npm CLI. Alternatively, set the environment’s `NPM_TOKEN` secret to an npm token authorized to publish this package. Configure any desired environment reviewer. The workflow at `.github/workflows/release.yml` runs when a GitHub Release is published, checks its tag and prerelease flag, rebuilds/tests/packs, checks registry identity/version, then publishes.
-
-The token is supplied only to the publish step. No token is committed. If neither trusted publishing nor token authentication is configured the publish fails; the repository being public is not sufficient authentication. CI checks on Node 22.19 and 24 run on every push and pull request.
-
-For future prereleases set `publishConfig.tag` to `next`, use a semver prerelease version and mark the GitHub Release as prerelease. Update `compatibility.json` and release notes with every version. `release-check.mjs` prevents version/cohort drift; the registry preflight rejects an existing version by default, repository-name collisions and moving `latest` backwards. Only the release workflow opts into the exact-commit idempotency check.
+Before tagging, commit all source and generated artifacts, confirm the version and release notes, and ensure the working tree is clean. Registry preflight rejects duplicate versions, repository collisions and backwards movement of `latest`. Do not move a published tag. The exact-commit bypass supported by the standalone preflight utility is not used by the online publication workflow.
 
 ## After publication / recovery
 
