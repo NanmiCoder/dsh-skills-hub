@@ -5,7 +5,7 @@
  * cross-source dedupe, per-source health/degradation reporting, TTL caching
  * (stale-while-error) and locally-computed install state.
  *
- * The module is deliberately free of DSH services and of the filesystem: the
+ * The module is deliberately free of DSH services: the
  * "what is installed locally" question is answered by an injected
  * `InstalledLookup` (see `setInstalledLookup`), so this file can be unit-tested
  * by pointing the providers at a stub server.
@@ -66,6 +66,7 @@ export interface ListMarketSkillsParams {
 export declare function listMarketSkills(params: ListMarketSkillsParams): Promise<MarketListResult>;
 export declare function getMarketSkillDetail(source: MarketSource, slug: string, options?: {
     force?: boolean;
+    allowStale?: boolean;
 }): Promise<{
     skill: NormalizedSkillDetail;
     sourceStatus: SourceStatusInfo;

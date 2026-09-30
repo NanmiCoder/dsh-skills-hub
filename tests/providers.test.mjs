@@ -15,7 +15,9 @@
  */
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { readFile, stat } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
@@ -38,11 +40,13 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
   const { configureProviderFetch, getProviderBase, MarketHttpError } = await load('provider-fetch.js')
   const { clawhubProvider, resetClawhubOwnerCache } = await load('clawhub-provider.js')
   const { skillhubProvider } = await load('skillhub-provider.js')
-  const { resetMarketCache, getSourceHealth, getMarketStats } = await load('cache.js')
+  const { resetMarketCache, getSourceHealth, getMarketStats, marketCache } = await load('cache.js')
+  const { installMarketSkill } = await load('install-service.js')
   const {
     listMarketSkills,
     getMarketSkillDetail,
     getMarketFileContent,
+    resolveMarketSkill,
     getMarketStatus,
     isValidMarketFilePath,
     setInstalledLookup,
@@ -81,6 +85,8 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     clawhubDetailMode: 'ok', // 'ok' | '404' | '409' (ambiguous slug)
     clawhubOmitDescription: false,
     clawhubVersionStatus: 200,
+    clawhubVersionPayload: null,
+    switchConfigOnDetail: false,
     clawhubFileBody: null,
     clawhubFileOversize: false,
     skillhubListPayload: null,
@@ -123,6 +129,10 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     }
     if (path === '/api/v1/search') return replyJson(res, 200, upstream.clawhubSearchPayload ?? fixtures.clawhubSearch)
     if (path === '/api/v1/skills/git') {
+      if (upstream.switchConfigOnDetail) {
+        upstream.switchConfigOnDetail = false
+        configureProviderFetch({ clawhubBaseUrl: 'http://127.0.0.1:1' })
+      }
       if (upstream.clawhubDetailMode === '409' && query.get('owner') !== 'pskoett') {
         return replyJson(res, 409, { code: 'AMBIGUOUS_SKILL_SLUG', slug: 'git', matches: [{ ownerHandle: 'pskoett' }] })
       }
@@ -133,7 +143,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     }
     if (path === '/api/v1/skills/git/versions/1.0.8') {
       if (upstream.clawhubVersionStatus !== 200) return replyJson(res, upstream.clawhubVersionStatus, { error: 'no such version' })
-      return replyJson(res, 200, fixtures.clawhubVersionDetail)
+      return replyJson(res, 200, upstream.clawhubVersionPayload ?? fixtures.clawhubVersionDetail)
     }
     if (path === '/api/v1/skills/git/file') {
       if (upstream.clawhubFileOversize) {
@@ -632,6 +642,53 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     requests.length = 0
     await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 3, cursor: refreshed.nextCursor ?? undefined })
     assert.equal(requests.length, pageRequests)
+  })
+
+  await subtest('install manifest reads refuse stale snapshots when upstream fails', async () => {
+    await getMarketSkillDetail('clawhub', 'git')
+    upstream.clawhubDetailMode = '404'
+    assert.equal((await getMarketSkillDetail('clawhub', 'git', { force: true })).sourceStatus.status, 'cached')
+    await assert.rejects(resolveMarketSkill('clawhub', 'git'), (error) => error.status === 404)
+  })
+
+  await subtest('actual installs bypass fresh and expired browser details after upstream removal', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'skills-hub-install-cache-'))
+    try {
+      const { skill } = await getMarketSkillDetail('clawhub', 'git')
+      const key = `detail:clawhub:${JSON.stringify([origin, 'git'])}`
+      upstream.clawhubDetailMode = '404'
+      for (const ttl of [60 * 60_000, -1]) {
+        await marketCache.set(key, skill, ttl)
+        assert.equal((await getMarketSkillDetail('clawhub', 'git')).sourceStatus.fromCache, true)
+        const before = requests.length
+        await assert.rejects(installMarketSkill('clawhub', 'git', { skillsRoot: root, allowUninstall: true }), (error) => error.status === 404)
+        assert.deepEqual(requests.slice(before).map((request) => request.path), ['/api/v1/skills/git'])
+        await assert.rejects(stat(join(root, 'git')), { code: 'ENOENT' })
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  await subtest('an install keeps one provider configuration across manifest, inventory and file reads', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'skills-hub-install-reload-'))
+    try {
+      upstream.clawhubVersionPayload = { version: { version: '1.0.8', files: [{
+        path: 'SKILL.md', size: Buffer.byteLength(CLAWHUB_SKILL_MD),
+        sha256: createHash('sha256').update(CLAWHUB_SKILL_MD).digest('hex'),
+      }] } }
+      upstream.switchConfigOnDetail = true
+      const installed = await installMarketSkill('clawhub', 'git', { skillsRoot: root, allowUninstall: true })
+      assert.equal(getProviderBase('clawhub'), 'http://127.0.0.1:1', 'the profile really changed during the manifest read')
+      assert.equal(installed.skill.version, '1.0.8')
+      assert.equal(await readFile(join(root, 'git', 'SKILL.md'), 'utf8'), CLAWHUB_SKILL_MD)
+      assert.deepEqual(requests.map((request) => request.path), [
+        '/api/v1/skills/git', '/api/v1/skills/git/versions/1.0.8',
+        '/api/v1/skills/git/versions/1.0.8', '/api/v1/skills/git/file',
+      ])
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   await subtest('clawhub detail(): fetches Markdown when the catalogue omits description', async () => {

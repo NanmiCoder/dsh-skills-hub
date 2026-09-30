@@ -13,8 +13,8 @@
  *    already holds.
  *  - **in-flight guards**: one install/uninstall per id, one page per cursor, one
  *    detail/file request per target.
- *  - **detail/file caching**: reopening a skill is instant and cannot blank the
- *    pane with a spinner.
+ *  - **detail snapshots**: reopening can show the previous copy immediately,
+ *    while the Host rechecks its TTL and current install annotations.
  *  - **local management**: the InstalledSkills component independently lists what is already
  *    on disk (`fetchInstalled`) instead of asking the market, matching the
  *    contract's §5.3 behaviour.
@@ -49,6 +49,8 @@ export interface MarketState {
     items: NormalizedSkill[];
     nextCursor: string | null;
     sources: Record<MarketSource, SourceStatusInfo>;
+    /** Each card retains the provenance of its own page when more pages append. */
+    itemStatuses: Record<string, SourceStatusInfo>;
     loading: boolean;
     loadingMore: boolean;
     error: string | null;

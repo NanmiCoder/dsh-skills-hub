@@ -24,7 +24,8 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { clawhubProvider } from './clawhub-provider.ts'
 import { skillhubProvider } from './skillhub-provider.ts'
-import { getMarketSkillDetail } from './market-service.ts'
+import { getMarketSkillDetail, resolveMarketSkill } from './market-service.ts'
+import { withProviderConfiguration } from './provider-fetch.ts'
 import {
   INSTALL_META_FILE,
   parseInstalledMeta,
@@ -137,8 +138,7 @@ function hasErrorCode(error: unknown, code: string): boolean {
 
 /** The upstream detail for a skill, or the market's own "not installable" verdict. */
 async function loadDetail(source: MarketSource, slug: string): Promise<NormalizedSkill> {
-  const { skill } = await getMarketSkillDetail(source, slug)
-  return skill
+  return resolveMarketSkill(source, slug)
 }
 
 /**
@@ -200,7 +200,15 @@ async function readJsonIfExists(filePath: string): Promise<unknown> {
  * @throws {import('./types.ts').MarketUpstreamError} for upstream failures,
  *   unwrapped so the route can classify them (404 vs 502).
  */
-export async function installMarketSkill(
+export function installMarketSkill(
+  source: MarketSource,
+  slug: string,
+  options: { skillsRoot: string; allowUninstall: boolean },
+): Promise<InstallResult> {
+  return withProviderConfiguration(() => installMarketSkillWithConfiguration(source, slug, options))
+}
+
+async function installMarketSkillWithConfiguration(
   source: MarketSource,
   slug: string,
   options: { skillsRoot: string; allowUninstall: boolean },
@@ -252,8 +260,7 @@ async function performInstall(
     )
   }
 
-  // The cached detail may be older than the provider's version index, so the
-  // file list is fetched fresh at install time (mirrors the reference).
+  // Re-read the file inventory for the freshly resolved manifest version.
   const files = await providers[source].listFiles(slug, detail.version)
   if (files.length === 0 || !files.some((file) => file.path === 'SKILL.md')) {
     throw new MarketInstallError(

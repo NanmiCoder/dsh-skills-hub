@@ -60,6 +60,8 @@ export interface SkillsHubRoutesDeps {
   skillsRoot: () => Promise<string>
   allowUninstall: () => boolean
   rescan: () => Promise<void>
+  /** Initial local inventory scan, required before annotating persisted data. */
+  ready?: () => Promise<void>
 }
 
 /**
@@ -448,6 +450,7 @@ async function handle(
     }
   }
 
+  await deps.ready?.()
   const url = new URL(req.url ?? '/', 'http://localhost')
   const segments = parseSegments(url.pathname)
   const method = req.method ?? 'GET'

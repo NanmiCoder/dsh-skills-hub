@@ -29,6 +29,8 @@ export interface SkillsHubConfig {
     allowUninstall: boolean;
     /** Default `limit` for `GET /skills` when the request omits one (clamped to 1…100). */
     pageSize: number;
+    /** Lifetime of persisted market snapshots in minutes (1…1440). */
+    cacheTtlMinutes: number;
 }
 /**
  * Shipped defaults. Exported so `apply()` can fill in a partially resolved

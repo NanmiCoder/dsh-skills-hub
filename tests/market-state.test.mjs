@@ -89,16 +89,83 @@ test('refresh after external removal invalidates cached installation detail', as
   requests[0].resolve({ skill: skill('one', 'installed'), sourceStatus: sources.clawhub })
   await open
   controller.closeDetail()
-  await controller.openDetail('clawhub:one')
-  assert.equal(requests.length, 1, 'ordinary navigation uses cached details')
+  const cachedOpen = controller.openDetail('clawhub:one')
+  assert.equal(controller.state.detail.installState, 'installed', 'ordinary navigation displays the previous snapshot immediately')
+  assert.equal(controller.state.detailStatus.fromCache, true)
+  assert.equal(requests.length, 2, 'ordinary navigation rechecks the Host cache and its TTL')
+  requests[1].resolve({ skill: skill('one', 'installed'), sourceStatus: { ...sources.clawhub, fromCache: true } })
+  await cachedOpen
   controller.closeDetail()
   const refreshed = controller.refresh()
-  requests[1].resolve(page([skill('one')]))
+  requests[2].resolve(page([skill('one')]))
   await refreshed
   const reopened = controller.openDetail('clawhub:one')
-  assert.equal(requests.length, 3, 'local-management refresh forces a fresh detail request')
+  assert.equal(requests.length, 4, 'local-management refresh forces a fresh detail request')
   assert.equal(controller.state.detail, null)
-  requests[2].resolve({ skill: skill('one'), sourceStatus: sources.clawhub })
+  requests[3].resolve({ skill: skill('one'), sourceStatus: sources.clawhub })
   await reopened
   assert.equal(controller.state.detail.installState, 'installable')
+})
+
+test('reopening details and revisiting files always let the Host enforce snapshot expiry', async (t) => {
+  const requests = transport(t)
+  const controller = createMarketController()
+  const initial = controller.openDetail('clawhub:one')
+  requests[0].resolve({ skill: skill('one'), sourceStatus: { status: 'ok', fetchedAt: 1, fromCache: false } })
+  await initial
+  const file = controller.selectFile('SKILL.md')
+  requests[1].resolve({ file: { path: 'SKILL.md', content: 'old', language: 'markdown', size: 3, truncated: false } })
+  await file
+  controller.closeDetail()
+
+  const reopen = controller.openDetail('clawhub:one')
+  assert.equal(controller.state.detailStatus.fromCache, true, 'the immediate display copy must be identified as a snapshot')
+  assert.equal(controller.state.detailStatus.fetchedAt, 1)
+  requests[2].resolve({ skill: { ...skill('one'), version: 'new' }, sourceStatus: { status: 'ok', fetchedAt: 2, fromCache: false } })
+  await reopen
+  assert.equal(controller.state.detail.version, 'new')
+  const revisited = controller.selectFile('SKILL.md')
+  requests[3].resolve({ file: { path: 'SKILL.md', content: 'new', language: 'markdown', size: 3, truncated: false } })
+  await revisited
+  assert.equal(controller.state.file.content, 'new')
+
+  controller.closeDetail()
+  const failed = controller.openDetail('clawhub:one')
+  requests[4].resolve({ error: { code: 'UNAVAILABLE', message: 'Snapshot no longer usable' } }, 503)
+  await failed
+  assert.equal(controller.state.detail, null, 'a failed Host revalidation must not silently keep a browser snapshot')
+  assert.equal(controller.state.detailError, 'Snapshot no longer usable')
+})
+
+test('opening another detail discards an in-flight file from the previous skill', async (t) => {
+  const requests = transport(t)
+  const controller = createMarketController()
+  const first = controller.openDetail('clawhub:one')
+  requests[0].resolve({ skill: skill('one'), sourceStatus: sources.clawhub })
+  await first
+  const file = controller.selectFile('SKILL.md')
+  const second = controller.openDetail('clawhub:two')
+  assert.equal(requests[1].options.signal.aborted, true)
+  requests[2].resolve({ skill: skill('two'), sourceStatus: sources.clawhub })
+  await second
+  requests[1].resolve({ file: { path: 'SKILL.md', content: 'wrong skill' } })
+  await file
+  assert.equal(controller.state.detail.id, 'clawhub:two')
+  assert.equal(controller.state.file, null)
+})
+
+test('appended pages preserve each existing card’s snapshot provenance', async (t) => {
+  const requests = transport(t)
+  const controller = createMarketController()
+  const initial = controller.refresh()
+  const cachedStatus = { status: 'ok', fromCache: true, fetchedAt: 1 }
+  requests[0].resolve({ ...page([skill('old')], 'page-two'), sources: { ...sources, clawhub: cachedStatus } })
+  await initial
+  const append = controller.loadMore()
+  const freshStatus = { status: 'ok', fromCache: false, fetchedAt: 2 }
+  requests[1].resolve({ ...page([skill('old'), skill('new')]), sources: { ...sources, clawhub: freshStatus } })
+  await append
+  assert.deepEqual(controller.state.itemStatuses['clawhub:old'], cachedStatus)
+  assert.deepEqual(controller.state.itemStatuses['clawhub:new'], freshStatus)
+  assert.deepEqual(controller.state.sources.clawhub, freshStatus)
 })

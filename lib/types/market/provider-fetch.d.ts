@@ -18,6 +18,8 @@ export interface ProviderEndpointConfig {
     retries: number;
     userAgent: string;
 }
+/** Keep cache keys and all chained upstream reads on one configuration snapshot. */
+export declare function withProviderConfiguration<T>(operation: () => Promise<T>): Promise<T>;
 /**
  * Point the providers at different hosts / limits. Called by the plugin with the
  * resolved Config; tests call it to aim the providers at a local stub server.

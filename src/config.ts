@@ -31,6 +31,8 @@ export interface SkillsHubConfig {
   allowUninstall: boolean
   /** Default `limit` for `GET /skills` when the request omits one (clamped to 1…100). */
   pageSize: number
+  /** Lifetime of persisted market snapshots in minutes (1…1440). */
+  cacheTtlMinutes: number
 }
 
 /**
@@ -46,6 +48,7 @@ export const SKILLS_HUB_DEFAULTS: SkillsHubConfig = {
   requestRetries: 1,
   allowUninstall: true,
   pageSize: 24,
+  cacheTtlMinutes: 60,
 }
 
 /**
@@ -68,4 +71,5 @@ export const Config: z<SkillsHubConfig> = z.object({
   requestRetries: z.natural().default(SKILLS_HUB_DEFAULTS.requestRetries),
   allowUninstall: z.boolean().default(SKILLS_HUB_DEFAULTS.allowUninstall),
   pageSize: z.natural().min(1).max(100).default(SKILLS_HUB_DEFAULTS.pageSize),
+  cacheTtlMinutes: z.natural().min(1).max(1440).default(SKILLS_HUB_DEFAULTS.cacheTtlMinutes),
 })

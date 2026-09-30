@@ -5,13 +5,14 @@
  * cross-source dedupe, per-source health/degradation reporting, TTL caching
  * (stale-while-error) and locally-computed install state.
  *
- * The module is deliberately free of DSH services and of the filesystem: the
+ * The module is deliberately free of DSH services: the
  * "what is installed locally" question is answered by an injected
  * `InstalledLookup` (see `setInstalledLookup`), so this file can be unit-tested
  * by pointing the providers at a stub server.
  */
 
-import { getSourceHealth, markSourceHealth, MARKET_TTL, marketCache, noteMarketStat } from './cache.ts'
+import { getSourceHealth, markSourceHealth, marketCache, noteMarketStat, type MarketCache } from './cache.ts'
+import { getProviderBase, withProviderConfiguration } from './provider-fetch.ts'
 import { clawhubProvider } from './clawhub-provider.ts'
 import { skillhubProvider } from './skillhub-provider.ts'
 import {
@@ -213,17 +214,17 @@ function providerPageCacheKey(
   kind: 'list' | 'search',
   params: { q?: string; cursor?: string; limit: number },
 ): string {
-  return `${kind}:${source}:${JSON.stringify([params.q ?? null, params.cursor ?? null, params.limit])}`
+  return `${kind}:${source}:${JSON.stringify([getProviderBase(source), params.q ?? null, params.cursor ?? null, params.limit])}`
 }
 
 async function fetchProviderPage(
   source: MarketSource,
   params: { q?: string; cursor?: string; limit: number },
+  cache: MarketCache,
   options: { force?: boolean } = {},
 ): Promise<ProviderOutcome> {
   const isSearch = Boolean(params.q)
   const cacheKey = providerPageCacheKey(source, isSearch ? 'search' : 'list', params)
-  const ttl = isSearch ? MARKET_TTL.search : MARKET_TTL.list
   const forced = options.force === true
 
   if (forced) {
@@ -231,7 +232,7 @@ async function fetchProviderPage(
     // below, so the refresh costs one request and then serves everyone again.
     noteMarketStat('forcedRefreshes')
   } else {
-    const hit = marketCache.getRecord<ProviderListPage>(cacheKey)
+    const hit = await cache.getRecord<ProviderListPage>(cacheKey)
     if (hit) {
       noteMarketStat('hits')
       // The real fetch time travels with the payload: a hit is a snapshot, and
@@ -247,8 +248,8 @@ async function fetchProviderPage(
       ? await providers[source].search({ q, cursor: params.cursor, limit: params.limit })
       : await providers[source].list({ cursor: params.cursor, limit: params.limit })
     noteMarketStat('upstreamRequests')
-    marketCache.set(cacheKey, page, ttl)
-    return { page, status: { status: 'ok', fetchedAt: Date.now(), fromCache: false } }
+    const storedAt = await cache.set(cacheKey, page)
+    return { page, status: { status: 'ok', fetchedAt: storedAt, fromCache: false } }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     // A provider that rejects a well-formed HTTP 200 (missing `items`, a
@@ -258,7 +259,7 @@ async function fetchProviderPage(
     markSourceHealth(source, 'failed', message)
     // Stale-while-error: a degraded source still serves its last good page, so a
     // temporary upstream outage does not empty the panel.
-    const stale = marketCache.getStale<ProviderListPage>(cacheKey)
+    const stale = await cache.getStale<ProviderListPage>(cacheKey)
     if (stale) {
       noteMarketStat('staleServed')
       return {
@@ -270,7 +271,12 @@ async function fetchProviderPage(
   }
 }
 
-export async function listMarketSkills(params: ListMarketSkillsParams): Promise<MarketListResult> {
+export function listMarketSkills(params: ListMarketSkillsParams): Promise<MarketListResult> {
+  const cache = marketCache
+  return withProviderConfiguration(() => listMarketSkillsWithCache(params, cache))
+}
+
+async function listMarketSkillsWithCache(params: ListMarketSkillsParams, cache: MarketCache): Promise<MarketListResult> {
   const cursor = decodeCursor(params.cursor)
   const isFirstPage = !params.cursor
   const activeSources = params.source === 'all' ? MARKET_SOURCES : [params.source]
@@ -290,7 +296,7 @@ export async function listMarketSkills(params: ListMarketSkillsParams): Promise<
       const limit = q && source === 'clawhub' ? MARKET_LIMITS.searchResultCap : params.limit
       outcomes.set(
         source,
-        await fetchProviderPage(source, { q, cursor: providerCursor, limit }, { force: params.refresh === true }),
+        await fetchProviderPage(source, { q, cursor: providerCursor, limit }, cache, { force: params.refresh === true }),
       )
     }),
   )
@@ -332,15 +338,25 @@ export async function listMarketSkills(params: ListMarketSkillsParams): Promise<
 
 // ─── Detail / file content ───────────────────────────────────────────────────
 
-export async function getMarketSkillDetail(
+export function getMarketSkillDetail(
   source: MarketSource,
   slug: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; allowStale?: boolean } = {},
 ): Promise<{ skill: NormalizedSkillDetail; sourceStatus: SourceStatusInfo }> {
-  const cacheKey = `detail:${source}:${slug}`
+  const cache = marketCache
+  return withProviderConfiguration(() => getMarketSkillDetailWithCache(source, slug, options, cache))
+}
+
+async function getMarketSkillDetailWithCache(
+  source: MarketSource,
+  slug: string,
+  options: { force?: boolean; allowStale?: boolean },
+  cache: MarketCache,
+): Promise<{ skill: NormalizedSkillDetail; sourceStatus: SourceStatusInfo }> {
+  const cacheKey = `detail:${source}:${JSON.stringify([getProviderBase(source), slug])}`
   const forced = options.force === true
   if (forced) noteMarketStat('forcedRefreshes')
-  const hit = forced ? undefined : marketCache.getRecord<NormalizedSkillDetail>(cacheKey)
+  const hit = forced ? undefined : await cache.getRecord<NormalizedSkillDetail>(cacheKey)
 
   let detail: NormalizedSkillDetail
   let sourceStatus: SourceStatusInfo
@@ -354,10 +370,11 @@ export async function getMarketSkillDetail(
     try {
       detail = await providers[source].detail(slug)
       noteMarketStat('upstreamRequests')
-      marketCache.set(cacheKey, detail, MARKET_TTL.detail)
-      sourceStatus = { status: 'ok', fetchedAt: Date.now(), fromCache: false }
+      const storedAt = await cache.set(cacheKey, detail)
+      sourceStatus = { status: 'ok', fetchedAt: storedAt, fromCache: false }
     } catch (error) {
-      const stale = marketCache.getStale<NormalizedSkillDetail>(cacheKey)
+      if (options.allowStale === false) throw error
+      const stale = await cache.getStale<NormalizedSkillDetail>(cacheKey)
       if (!stale) throw error
       noteMarketStat('staleServed')
       detail = stale.value
@@ -381,15 +398,25 @@ export function isValidMarketFilePath(filePath: string): boolean {
   return true
 }
 
-export async function getMarketFileContent(
+export function getMarketFileContent(
   source: MarketSource,
   slug: string,
   filePath: string,
 ): Promise<MarketFileContent> {
+  const cache = marketCache
+  return withProviderConfiguration(() => getMarketFileContentWithCache(source, slug, filePath, cache))
+}
+
+async function getMarketFileContentWithCache(
+  source: MarketSource,
+  slug: string,
+  filePath: string,
+  cache: MarketCache,
+): Promise<MarketFileContent> {
   // JSON-encoded for the same reason as the list keys: slug and filePath are
   // both caller-controlled, so a `:`-joined key is ambiguous.
-  const cacheKey = `file:${source}:${JSON.stringify([slug, filePath])}`
-  const cached = marketCache.getRecord<MarketFileContent>(cacheKey)
+  const cacheKey = `file:${source}:${JSON.stringify([getProviderBase(source), slug, filePath])}`
+  const cached = await cache.getRecord<MarketFileContent>(cacheKey)
   if (cached) {
     noteMarketStat('hits')
     return cached.value
@@ -410,7 +437,7 @@ export async function getMarketFileContent(
     size: fetched.size,
     truncated,
   }
-  marketCache.set(cacheKey, result, MARKET_TTL.fileContent)
+  await cache.set(cacheKey, result)
   return result
 }
 
@@ -432,6 +459,6 @@ export function getMarketStatus(): Record<MarketSource, SourceStatusInfo> {
  * list, so the list must come from the same generation as those bytes.
  */
 export async function resolveMarketSkill(source: MarketSource, slug: string): Promise<NormalizedSkillDetail> {
-  const { skill } = await getMarketSkillDetail(source, slug, { force: true })
+  const { skill } = await getMarketSkillDetail(source, slug, { force: true, allowStale: false })
   return skill
 }

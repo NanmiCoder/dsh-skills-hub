@@ -20,6 +20,22 @@ import { after, before, test } from 'node:test'
 
 const ROOT = new URL('..', import.meta.url).pathname
 const ENTRY = join(ROOT, 'lib', 'index.js')
+let testHome
+const savedHome = process.env.DSH_HOME
+const savedAgentsHome = process.env.DSH_AGENTS_HOME
+
+before(async () => {
+  testHome = await mkdtemp(join(tmpdir(), 'skills-hub-http-home-'))
+  process.env.DSH_HOME = testHome
+  process.env.DSH_AGENTS_HOME = join(testHome, 'agents')
+})
+after(async () => {
+  if (savedHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = savedHome
+  if (savedAgentsHome === undefined) delete process.env.DSH_AGENTS_HOME
+  else process.env.DSH_AGENTS_HOME = savedAgentsHome
+  await rm(testHome, { recursive: true, force: true })
+})
 
 let built = true
 try {

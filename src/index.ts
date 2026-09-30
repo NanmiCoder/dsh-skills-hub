@@ -17,11 +17,13 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import * as path from 'node:path'
 import { Config, SKILLS_HUB_DEFAULTS, type SkillsHubConfig } from './config.ts'
+import { configureMarketCache } from './market/cache.ts'
 import { configureProviderFetch } from './market/provider-fetch.ts'
 import { setInstalledLookup, resetInstalledLookup } from './market/market-service.ts'
 import { installedLookupFrom, scanInstalledSkills } from './skills/installed.ts'
-import { resolveSkillsRoot, resolveSkillsScanRoots } from './skills/root.ts'
+import { resolveDshHome, resolveSkillsRoot, resolveSkillsScanRoots } from './skills/root.ts'
 import {
   registerSkillsHubRoutes,
   setSkillsHubPageSize,
@@ -75,6 +77,7 @@ function resolveConfig(config: SkillsHubConfig | undefined): SkillsHubConfig {
     requestRetries: config?.requestRetries ?? SKILLS_HUB_DEFAULTS.requestRetries,
     allowUninstall: config?.allowUninstall ?? SKILLS_HUB_DEFAULTS.allowUninstall,
     pageSize: config?.pageSize ?? SKILLS_HUB_DEFAULTS.pageSize,
+    cacheTtlMinutes: config?.cacheTtlMinutes ?? SKILLS_HUB_DEFAULTS.cacheTtlMinutes,
   }
 }
 
@@ -125,6 +128,11 @@ export function apply(ctx: Context, config: SkillsHubConfig): void {
     retries: resolved.requestRetries,
   })
   setSkillsHubPageSize(resolved.pageSize)
+  configureMarketCache({
+    directory: path.join(resolveDshHome(), 'cache', 'skills-hub', 'v1'),
+    ttlMs: resolved.cacheTtlMinutes * 60_000,
+    onError: (error) => ctx.logger.warn(`skills-hub: persistent cache unavailable: ${String(error)}`),
+  })
 
   let disposed = false
 
@@ -162,11 +170,12 @@ export function apply(ctx: Context, config: SkillsHubConfig): void {
     resetInstalledLookup()
   }, 'skills-hub: activation state')
 
-  // First scan: `apply()` is synchronous, so this cannot be awaited here. Until
-  // it settles the market layer keeps its empty default lookup (skills show as
-  // installable, and the installer's own conflict check still refuses to clobber
-  // an existing directory), and /installed reads the disk directly.
-  void rescan()
+  // Apply is synchronous, but the first HTTP read must wait for install
+  // annotations even when a persisted snapshot arrives before the scan does.
+  const initialScan = refreshInstalledIndex().catch((error) => {
+    ctx.logger.warn(`skills-hub: installed-skill index refresh failed: ${String(error)}`)
+  })
+  void initialScan.then(() => refreshSkillCatalog(ctx))
 
   // The Web server may bind before or after this plugin (the Loader activates
   // rows concurrently), and older compositions name the service `httpServer`.
@@ -186,6 +195,7 @@ export function apply(ctx: Context, config: SkillsHubConfig): void {
       skillsRoot: () => resolveSkillsRoot(resolved.skillsRoot),
       allowUninstall: () => resolved.allowUninstall,
       rescan,
+      ready: () => initialScan,
     }
     // `ctx.effect` runs the factory immediately; `dsh-host-webserver` throws on a
     // duplicate route path, so the flag may only be set once registration has

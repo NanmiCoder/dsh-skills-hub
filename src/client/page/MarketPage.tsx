@@ -155,7 +155,7 @@ function confirmSkillOf(state: MarketState, id: string): ConfirmSkill {
     // applies depends on where the skill came from — the open detail page or
     // the list.
     const fromDetail = state.detail !== null && state.detail.id === id
-    const status = fromDetail ? state.detailStatus : state.sources[skill.source]
+    const status = fromDetail ? state.detailStatus : state.itemStatuses[skill.id]
     const snapshotAt = status?.fromCache === true ? status.fetchedAt : undefined
     return {
       id: skill.id,

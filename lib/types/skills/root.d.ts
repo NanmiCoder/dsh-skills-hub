@@ -21,6 +21,14 @@
  * `~`, `~/`, `~\` tilde expansion of `expandHomePath`.
  */
 /**
+ * Resolve the single-root harness home.
+ *
+ * Precedence, highest first: an explicit path, `$DSH_HOME`, then `~/.dsh`. A
+ * blank `$DSH_HOME` is treated as unset so a stray empty variable can never
+ * resolve the harness home to the current working directory.
+ */
+export declare function resolveDshHome(configured?: string | null): string;
+/**
  * Absolute skills directory skills are installed into, created on demand.
  *
  * A relative configured path is resolved against the host process's working

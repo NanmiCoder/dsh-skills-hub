@@ -11,6 +11,7 @@
  * is directly unit-testable by pointing the bases at a local stub.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { markSourceHealth } from './cache.ts'
 import { MARKET_ERROR_CODES, MARKET_LIMITS, MarketUpstreamError, type MarketSource } from './types.ts'
 
@@ -31,6 +32,12 @@ const DEFAULT_CONFIG: ProviderEndpointConfig = {
 }
 
 let currentConfig: ProviderEndpointConfig = { ...DEFAULT_CONFIG }
+const requestConfig = new AsyncLocalStorage<ProviderEndpointConfig>()
+
+/** Keep cache keys and all chained upstream reads on one configuration snapshot. */
+export function withProviderConfiguration<T>(operation: () => Promise<T>): Promise<T> {
+  return requestConfig.run(requestConfig.getStore() ?? currentConfig, operation)
+}
 
 /** Strip trailing slashes so `new URL('/api/...', base)` never doubles a separator. */
 function normalizeBaseUrl(value: string): string {
@@ -65,7 +72,8 @@ export function configureProviderFetch(config: Partial<ProviderEndpointConfig>):
 
 /** Base URL of one upstream, as resolved from the active configuration. */
 export function getProviderBase(source: MarketSource): string {
-  return source === 'clawhub' ? currentConfig.clawhubBaseUrl : currentConfig.skillhubBaseUrl
+  const config = requestConfig.getStore() ?? currentConfig
+  return source === 'clawhub' ? config.clawhubBaseUrl : config.skillhubBaseUrl
 }
 
 /**
@@ -115,7 +123,7 @@ export async function providerFetch(
   url: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const config = currentConfig
+  const config = requestConfig.getStore() ?? currentConfig
   const attempts = Math.max(1, config.retries + 1)
   let lastError: MarketUpstreamError | undefined
 

@@ -51,7 +51,7 @@ function expandHomePath(value: string): string {
  * blank `$DSH_HOME` is treated as unset so a stray empty variable can never
  * resolve the harness home to the current working directory.
  */
-function resolveDshHome(configured?: string | null): string {
+export function resolveDshHome(configured?: string | null): string {
   if (typeof configured === 'string' && configured.trim() !== '') {
     return path.resolve(expandHomePath(configured.trim()))
   }

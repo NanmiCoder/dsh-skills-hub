@@ -1,5 +1,5 @@
 /**
- * Skills Market — in-memory TTL cache with stale-while-error support, plus
+ * Skills Market — memory + persistent TTL cache with stale-while-error support, plus
  * per-source health tracking.
  *
  * Only *upstream* data is cached here (list pages, details, file bodies).
@@ -7,11 +7,11 @@
  * and is deliberately never cached: a skill installed a second ago must show up
  * as installed on the very next list call.
  *
- * Everything lives in module scope, so the module needs no DSH service and no
- * filesystem — a unit test can drive it with plain `node --test`.
+ * The host configures disk storage at activation. Without a directory the
+ * cache stays memory-only, so provider tests never touch a user's Harness home.
  */
 import type { MarketSource, SourceHealthStatus, SourceStatusInfo } from './types.ts';
-/** Per-payload TTLs: cheap-to-refetch list pages expire sooner than file bodies. */
+/** Default snapshot lifetime; activation can override it with cacheTtlMinutes. */
 export declare const MARKET_TTL: {
     readonly list: number;
     readonly search: number;
@@ -19,6 +19,11 @@ export declare const MARKET_TTL: {
     readonly files: number;
     readonly fileContent: number;
 };
+export interface MarketCacheOptions {
+    directory?: string;
+    ttlMs?: number;
+    onError?: (error: unknown) => void;
+}
 /** One fresh hit, together with the moment its payload was actually fetched. */
 export interface MarketCacheRecord<T> {
     value: T;
@@ -33,7 +38,7 @@ export interface MarketCacheRecord<T> {
  * these numbers on a real machine instead of reasoned about.
  */
 export interface MarketCacheStats {
-    /** Answers served from a fresh in-memory entry. */
+    /** Answers served from a fresh memory or disk entry. */
     hits: number;
     /** Lookups that had to go upstream (including forced refreshes). */
     misses: number;
@@ -48,8 +53,16 @@ export interface MarketCacheStats {
 export declare function noteMarketStat(entry: keyof MarketCacheStats): void;
 /** Snapshot of the counters; the caller cannot mutate the live object. */
 export declare function getMarketStats(): MarketCacheStats;
-declare class MarketCache {
+export declare class MarketCache {
+    private options;
     private entries;
+    private disk?;
+    private warned;
+    private ttlMs;
+    constructor(options?: MarketCacheOptions);
+    private warn;
+    private remember;
+    private read;
     /**
      * Read a fresh entry.
      *
@@ -58,16 +71,15 @@ declare class MarketCache {
      * the panel ended up reporting "fetched just now" for data it had not touched
      * in ten minutes.
      */
-    getRecord<T>(key: string): MarketCacheRecord<T> | undefined;
+    getRecord<T>(key: string): Promise<MarketCacheRecord<T> | undefined>;
     /** Returns the entry even when expired — used for the stale-while-error fallback. */
-    getStale<T>(key: string): {
-        value: T;
-        storedAt: number;
-    } | undefined;
-    set(key: string, value: unknown, ttlMs: number): void;
+    getStale<T>(key: string): Promise<MarketCacheRecord<T> | undefined>;
+    set(key: string, value: unknown, ttlMs?: number): Promise<number>;
     clear(): void;
 }
-export declare const marketCache: MarketCache;
+export declare let marketCache: MarketCache;
+/** Replace memory state when activating a profile; disk entries are read lazily. */
+export declare function configureMarketCache(options: MarketCacheOptions): void;
 /**
  * Record the outcome of one upstream interaction.
  *
@@ -81,6 +93,5 @@ export declare function markSourceHealth(source: MarketSource, status: SourceHea
 export declare function getSourceHealth(source: MarketSource): SourceStatusInfo;
 /** Test hook: forget every recorded success/failure. */
 export declare function resetSourceHealth(): void;
-/** Test hook: drop cached payloads, reset source health and the counters. */
+/** Test hook: drop memory payloads, reset source health and the counters. */
 export declare function resetMarketCache(): void;
-export {};

@@ -30,6 +30,8 @@ export interface SkillsHubRoutesDeps {
     skillsRoot: () => Promise<string>;
     allowUninstall: () => boolean;
     rescan: () => Promise<void>;
+    /** Initial local inventory scan, required before annotating persisted data. */
+    ready?: () => Promise<void>;
 }
 /**
  * Browser-trust gate, structurally equal to the frozen contract's predicate.

@@ -13,8 +13,8 @@
  *    already holds.
  *  - **in-flight guards**: one install/uninstall per id, one page per cursor, one
  *    detail/file request per target.
- *  - **detail/file caching**: reopening a skill is instant and cannot blank the
- *    pane with a spinner.
+ *  - **detail snapshots**: reopening can show the previous copy immediately,
+ *    while the Host rechecks its TTL and current install annotations.
  *  - **local management**: the InstalledSkills component independently lists what is already
  *    on disk (`fetchInstalled`) instead of asking the market, matching the
  *    contract's §5.3 behaviour.
@@ -82,6 +82,8 @@ export interface MarketState {
   items: NormalizedSkill[]
   nextCursor: string | null
   sources: Record<MarketSource, SourceStatusInfo>
+  /** Each card retains the provenance of its own page when more pages append. */
+  itemStatuses: Record<string, SourceStatusInfo>
   loading: boolean
   loadingMore: boolean
   error: string | null
@@ -153,6 +155,7 @@ function initialState(): MarketState {
     items: [],
     nextCursor: null,
     sources: emptySources(),
+    itemStatuses: {},
     loading: false,
     loadingMore: false,
     error: null,
@@ -218,6 +221,10 @@ function mergeSourceStatus(
   return { ...sources, [source]: status }
 }
 
+function itemStatuses(items: NormalizedSkill[], sources: Record<MarketSource, SourceStatusInfo>): Record<string, SourceStatusInfo> {
+  return Object.fromEntries(items.map((item) => [item.id, sources[item.source]]))
+}
+
 /** Copy the install-related fields of a fresh skill onto a cached detail. */
 function patchDetail(detail: NormalizedSkillDetail, updated: NormalizedSkill): NormalizedSkillDetail {
   return {
@@ -232,10 +239,9 @@ function createInternalController(): MarketControllerInternal {
   let state: MarketState = initialState()
   const listeners = new Set<() => void>()
 
-  // Response caches survive navigation inside the panel; they are keyed by id so
-  // a returning reader sees the skill they left, not a spinner.
+  // Display snapshots keep navigation instant. Every reopening still asks the
+  // Host, which owns the configured TTL and persistent upstream cache.
   const detailCache = new Map<string, { skill: NormalizedSkillDetail; status: SourceStatusInfo }>()
-  const fileCache = new Map<string, MarketFileContent>()
 
   // Request bookkeeping. Sequences are *only* bumped by the family they belong
   // to; a stale response is dropped by comparing its captured sequence.
@@ -341,7 +347,7 @@ function createInternalController(): MarketControllerInternal {
     inFlightCursor = null
     // Clearing the page is deliberate (it is what the reference store does): the
     // grid must not show results that belong to the previous filters.
-    commit({ loading: true, loadingMore: false, error: null, items: [], nextCursor: null })
+    commit({ loading: true, loadingMore: false, error: null, items: [], itemStatuses: {}, nextCursor: null })
 
     const promise = (async () => {
       try {
@@ -363,6 +369,7 @@ function createInternalController(): MarketControllerInternal {
           items: result.items,
           nextCursor: result.nextCursor,
           sources: result.sources,
+          itemStatuses: itemStatuses(result.items, result.sources),
           loading: false,
         })
       } catch (error) {
@@ -410,6 +417,7 @@ function createInternalController(): MarketControllerInternal {
         items: [...state.items, ...appended],
         nextCursor: result.nextCursor,
         sources: result.sources,
+        itemStatuses: { ...state.itemStatuses, ...itemStatuses(appended, result.sources) },
         loadingMore: false,
       })
     } catch (error) {
@@ -466,13 +474,19 @@ function createInternalController(): MarketControllerInternal {
       })
     } catch (error) {
       if (sequence !== detailSequence || isAbortError(error)) return
-      commit({ detailLoading: false, detailError: errorMessage(error) })
+      // Only the Host may authorize stale fallback. A display snapshot must not
+      // hide a failed revalidation or outlive the Host's retention limit.
+      detailCache.delete(id)
+      commit({ detail: null, detailStatus: null, detailLoading: false, detailError: errorMessage(error) })
     }
   }
 
-  /** Open one skill: cache first, network only when the cache misses. */
+  /** Show a previous copy immediately, then check the Host's authoritative cache. */
   async function openDetail(id: string, options: { refresh?: boolean } = {}): Promise<void> {
     const cached = options.refresh === true ? undefined : detailCache.get(id)
+    fileSequence += 1
+    fileAbort?.abort()
+    inFlightFileKey = null
     commit({
       view: { kind: 'detail', id },
       activeTab: 'overview',
@@ -483,10 +497,10 @@ function createInternalController(): MarketControllerInternal {
     if (cached !== undefined) {
       // The stored provenance travels with the stored payload: a reader coming
       // back to this skill must not be told the copy is fresher than it is.
-      commit({ detail: cached.skill, detailStatus: cached.status, detailLoading: false })
-      return
+      commit({ detail: cached.skill, detailStatus: { ...cached.status, fromCache: true }, detailLoading: false })
+    } else {
+      commit({ detail: null, detailStatus: null, detailLoading: true })
     }
-    commit({ detail: null, detailLoading: true })
     await loadDetail(id, options)
   }
 
@@ -522,16 +536,11 @@ function createInternalController(): MarketControllerInternal {
     void selectFile(first.path)
   }
 
-  /** Load one file of the open skill, cache first and one request per path. */
+  /** Read through the Host's TTL cache, with one in-flight request per path. */
   async function selectFile(path: string): Promise<void> {
     if (state.view.kind !== 'detail') return
     const id = state.view.id
     const key = fileCacheKey(id, path)
-    const cached = fileCache.get(key)
-    if (cached !== undefined) {
-      commit({ file: cached, fileLoading: false })
-      return
-    }
     if (inFlightFileKey === key) return
 
     const sequence = ++fileSequence
@@ -543,7 +552,6 @@ function createInternalController(): MarketControllerInternal {
     try {
       const file = await fetchSkillFile(id, path, controller.signal)
       if (sequence !== fileSequence) return
-      fileCache.set(key, file)
       commit({ file, fileLoading: false })
     } catch (error) {
       if (sequence !== fileSequence || isAbortError(error)) return
