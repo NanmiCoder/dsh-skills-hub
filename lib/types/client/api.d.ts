@@ -68,9 +68,13 @@ export declare class SkillsHubApiError extends Error {
  */
 export declare function isAbortError(error: unknown): boolean;
 /** Search the catalogue (market sources) — the remote list page. */
-export declare function fetchMarketList(query: MarketQuery, signal?: AbortSignal): Promise<MarketListResult>;
+export declare function fetchMarketList(query: MarketQuery, signal?: AbortSignal, options?: {
+    refresh?: boolean;
+}): Promise<MarketListResult>;
 /** One skill's full detail plus the health of the source that served it. */
-export declare function fetchSkillDetail(id: string, signal?: AbortSignal): Promise<{
+export declare function fetchSkillDetail(id: string, signal?: AbortSignal, options?: {
+    refresh?: boolean;
+}): Promise<{
     skill: NormalizedSkillDetail;
     sourceStatus: SourceStatusInfo;
 }>;
@@ -94,11 +98,35 @@ export declare function uninstallSkill(id: string): Promise<{
     removedPath: string;
     skill: NormalizedSkill;
 }>;
-/** Preview the exact local copy without consulting a market provider. */
-export declare function fetchInstalledDetail(key: string, signal?: AbortSignal): Promise<{
+/**
+ * One file of an installed skill, as the file tab lists it.
+ *
+ * `language` is the Host's mapping from the file extension and `size` is the
+ * real size on disk, so a truncated preview still reports the document it came
+ * from rather than the bytes that fit through the endpoint.
+ */
+export interface InstalledFileEntry {
+    path: string;
+    size: number;
+    language: string;
+}
+/**
+ * The local skill page's payload.
+ *
+ * `markdown` is the whole SKILL.md (frontmatter included) and `frontmatter` is
+ * that same header as YAML text: the market detail's structured metadata panel
+ * is fed by upstream JSON, and a hand-written skill has no such record.
+ */
+export interface InstalledSkillDetail {
     item: InstalledSkillRecord;
     markdown: string;
-}>;
+    frontmatter: string | null;
+    files: InstalledFileEntry[];
+}
+/** Preview the exact local copy without consulting a market provider. */
+export declare function fetchInstalledDetail(key: string, signal?: AbortSignal): Promise<InstalledSkillDetail>;
+/** One file of an installed skill; the Host validates the key and contains the path. */
+export declare function fetchInstalledFile(key: string, path: string, signal?: AbortSignal): Promise<MarketFileContent>;
 /** Remove a specifically selected local entry after the management UI confirmation. */
 export declare function removeInstalled(key: string): Promise<{
     item: InstalledSkillRecord;

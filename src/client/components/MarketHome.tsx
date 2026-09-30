@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarketFilters, MarketState, MarketController } from '../state.ts'
 import { useT } from '../locale-context.tsx'
@@ -8,6 +8,29 @@ import { MarketDisclaimer } from './MarketDisclaimer.tsx'
 import { SkillCard } from './SkillCard.tsx'
 import { SourceStatusBar } from './SourceStatusBar.tsx'
 import styles from './MarketHome.module.css'
+
+/**
+ * How far ahead of the end of the list the next page is fetched.
+ *
+ * The catalogue scrolls inside the host's dock rather than the document, and an
+ * observer whose root is the viewport is clipped by that dock: `rootMargin` on
+ * the viewport is dead weight there (measured: the same sentinel reports
+ * "not intersecting" 412px below the fold with a viewport root, and
+ * "intersecting" with the dock as root). The margin therefore only means
+ * anything once the observer is given the real scroll container.
+ */
+const PREFETCH_MARGIN = '900px 0px'
+
+/** Nearest scrollable ancestor, or `null` when the list scrolls with the document. */
+function scrollContainerOf(element: HTMLElement): HTMLElement | null {
+  let node = element.parentElement
+  while (node !== null && node !== document.body) {
+    const overflowY = getComputedStyle(node).overflowY
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node
+    node = node.parentElement
+  }
+  return null
+}
 
 /**
  * Market catalogue page.
@@ -20,18 +43,35 @@ export function MarketHome(props: { state: MarketState; controller: MarketContro
   const { state, controller } = props
   const t = useT()
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const [scrolled, setScrolled] = useState(false)
+
+  // Look-ahead is a *scrolling* optimisation, so it waits for a scroll. Arming it
+  // on the tall header alone would fetch the second page for every reader who
+  // opens the panel and leaves — traffic with nobody waiting for it. The scroll
+  // may come from the host's dock rather than this subtree, so the listener
+  // rides the capture phase on the document.
+  useEffect(() => {
+    if (scrolled) return
+    const mark = (): void => setScrolled(true)
+    document.addEventListener('scroll', mark, { capture: true, passive: true, once: true })
+    return () => document.removeEventListener('scroll', mark, { capture: true })
+  }, [scrolled])
 
   // Observe the end of the catalogue within the host's scrollable dock. Re-arm
   // after each page so a short page naturally fills the viewport.
   useEffect(() => {
     const sentinel = sentinelRef.current
-    if (sentinel === null || state.nextCursor === null || state.loading || state.loadingMore || state.error !== null) return
+    if (sentinel === null || !scrolled || state.nextCursor === null || state.loading || state.loadingMore || state.error !== null) return
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) void controller.loadMore()
-    }, { rootMargin: '240px 0px' })
+      // One screen of look-ahead: the page is fetched while the reader is still
+      // a scroll away from it, so arriving at the sentinel finds the data (or a
+      // request already in flight) instead of starting one. The request count is
+      // unchanged — it only moves earlier, which is the whole point.
+    }, { root: scrollContainerOf(sentinel), rootMargin: PREFETCH_MARGIN })
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [controller, state.nextCursor, state.loading, state.loadingMore, state.error])
+  }, [controller, scrolled, state.nextCursor, state.loading, state.loadingMore, state.error])
 
   /**
    * The filter bar reports a patch; the controller exposes one setter per
@@ -72,7 +112,7 @@ export function MarketHome(props: { state: MarketState; controller: MarketContro
         </p>
         <SourceStatusBar
           sources={state.sources}
-          onRefresh={() => void controller.refresh()}
+          onRefresh={() => void controller.refresh({ force: true })}
           refreshing={state.loading}
         />
       </div>

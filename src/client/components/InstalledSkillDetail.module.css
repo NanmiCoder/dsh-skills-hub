@@ -1,0 +1,88 @@
+/* Local-skill chrome. The reading surface itself — header, tabs, document
+   column, facts rail, file viewer — is `SkillDetailShell.module.css`; only what
+   is specific to a skill that lives on disk belongs here. */
+
+.chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  box-sizing: border-box;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-2, #f0f2f5);
+  color: var(--dsw-alias-label-secondary, #61666b);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.chipOn {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 12%, transparent);
+  color: var(--dsw-alias-state-business-primary, #4176e6);
+}
+
+/* Location line. The absolute path is the one fact a local skill has and a
+   market entry does not, so it sits directly under the header instead of in the
+   facts rail, with a copy affordance that survives the ellipsis. */
+.pathRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
+  border-radius: var(--dsw-radius-sm, 8px);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+}
+
+.pathIcon {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary, #81858c);
+}
+
+.pathText {
+  flex: 1;
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary, #61666b);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 18px;
+  /* Wrap rather than clip: the tail of a path is the part that identifies it. */
+  overflow-wrap: anywhere;
+}
+
+.pathCopy {
+  flex: none;
+}
+
+.provenance {
+  margin: 0;
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--dsw-alias-border-l1, #0000000a);
+  color: var(--dsw-alias-label-tertiary, #81858c);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.failure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.failureTitle {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.failureText {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary, #61666b);
+  font-size: 12.5px;
+  line-height: 19px;
+  overflow-wrap: anywhere;
+}

@@ -7,6 +7,12 @@ export interface InstallConfirmSkill {
     version?: string;
     securityStatus: SecurityStatus;
     authorName: string;
+    /**
+     * When the catalogue data behind this dialog was read from upstream, if it
+     * came from a snapshot. Installing is a trust decision, so the confirmation
+     * cannot present a cached security verdict as a fresh one.
+     */
+    snapshotAt?: number;
 }
 /**
  * Install confirmation.

@@ -8,11 +8,13 @@ const TONE_COUNT = 6
  * Per-source tone family. The `source` prop is otherwise unused by a letter
  * avatar, so it earns its place as the family selector: ClawHub entries read
  * warm, SkillHub entries read cool, and a mixed grid still shows at a glance
- * where a card came from.
+ * where a card came from. A locally authored skill has no marketplace family,
+ * so its tile stays neutral rather than borrowing one.
  */
-const SOURCE_TONES: Record<MarketSource, readonly number[]> = {
+const SOURCE_TONES: Record<MarketSource | 'local', readonly number[]> = {
   clawhub: [2, 5, 1],
   skillhub: [0, 4, 3],
+  local: [3],
 }
 
 /** Class name per tone slot, resolved once so the render path stays trivial. */
@@ -53,7 +55,12 @@ function initialOf(name: string): string {
  * third-party catalogue, and allowing `javascript:` or `data:` here would turn
  * an upstream payload into script execution inside the DSH page.
  */
-export function SkillAvatar(props: { name: string; source: MarketSource; iconUrl?: string; size: number }): JSX.Element {
+export function SkillAvatar(props: {
+  name: string
+  source: MarketSource | 'local'
+  iconUrl?: string
+  size: number
+}): JSX.Element {
   const { name, source, iconUrl, size } = props
   // One corner ratio, not one fixed corner: the grid tile and the detail
   // header draw the same shape at 46px and 92px.

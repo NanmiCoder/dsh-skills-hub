@@ -217,3 +217,23 @@ export function TagIcon({ size = 16, className }: SkillsHubIconProps): JSX.Eleme
     </svg>
   )
 }
+
+/** Folder: leading glyph of the installed skill's location line. */
+export function FolderIcon({ size = 16, className }: SkillsHubIconProps): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" className={className} strokeWidth={1.5} {...stroke} aria-hidden="true" focusable="false">
+      <path d="M1.9 4.6a1.3 1.3 0 0 1 1.3-1.3h2.5l1.4 1.6h5.7a1.3 1.3 0 0 1 1.3 1.3v5.6a1.3 1.3 0 0 1-1.3 1.3H3.2a1.3 1.3 0 0 1-1.3-1.3z" />
+    </svg>
+  )
+}
+
+/** Arrow leaving a frame: open the same skill in the marketplace. */
+export function ExternalLinkIcon({ size = 16, className }: SkillsHubIconProps): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" className={className} strokeWidth={1.5} {...stroke} aria-hidden="true" focusable="false">
+      <path d="M9.4 2.6h4v4" />
+      <path d="M13.4 2.6 7.9 8.1" />
+      <path d="M12.2 9.6v3.1a1.3 1.3 0 0 1-1.3 1.3H3.6a1.3 1.3 0 0 1-1.3-1.3V5.4a1.3 1.3 0 0 1 1.3-1.3h3.1" />
+    </svg>
+  )
+}

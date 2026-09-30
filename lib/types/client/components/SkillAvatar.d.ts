@@ -8,7 +8,7 @@ import type { MarketSource } from '../../market/types.ts';
  */
 export declare function SkillAvatar(props: {
     name: string;
-    source: MarketSource;
+    source: MarketSource | 'local';
     iconUrl?: string;
     size: number;
 }): JSX.Element;

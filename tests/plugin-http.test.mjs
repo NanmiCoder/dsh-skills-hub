@@ -165,6 +165,35 @@ test('host routes serve the marketplace end to end', { skip: built ? false : 'ru
     assert.ok(body?.sources?.skillhub, 'status must carry per-source health')
   })
 
+  await t.test('reports cache counters and validates the refresh flag', async () => {
+    const { status, body, cache } = await get('/api/skills-hub/stats')
+    assert.equal(status, 200)
+    assert.equal(cache, 'no-store')
+    for (const key of ['hits', 'misses', 'staleServed', 'upstreamRequests', 'forcedRefreshes']) {
+      assert.equal(typeof body?.stats?.[key], 'number', `stats must carry ${key}`)
+    }
+    // A refresh flag the server cannot honour is a client bug, not something to
+    // ignore silently: the reader would be told "refreshed" with nothing read.
+    const invalid = await get('/api/skills-hub/skills?limit=1&refresh=maybe')
+    assert.equal(invalid.status, 400)
+    const accepted = await get('/api/skills-hub/skills?limit=1&refresh=1')
+    assert.equal(accepted.status, 200)
+  })
+
+  await t.test('a cache hit keeps the original fetch time', async () => {
+    const first = await get('/api/skills-hub/skills?limit=4&source=clawhub&security=all&installed=all')
+    if (first.status !== 200 || first.body?.items?.length === 0) return // upstream unavailable
+    const second = await get('/api/skills-hub/skills?limit=4&source=clawhub&security=all&installed=all')
+    assert.equal(second.status, 200)
+    assert.equal(second.body.sources.clawhub.fromCache, true)
+    // The snapshot's timestamp is the fetch that produced it — not the moment
+    // the cached answer was assembled.
+    assert.ok(
+      second.body.sources.clawhub.fetchedAt <= first.body.sources.clawhub.fetchedAt + 1000,
+      'a cache hit must not re-stamp the payload as freshly fetched',
+    )
+  })
+
   let firstId = null
   await t.test('lists skills from the live sources', async () => {
     const { status, body } = await get('/api/skills-hub/skills?limit=6&source=all&security=all&installed=all')

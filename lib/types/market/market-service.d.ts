@@ -60,15 +60,26 @@ export interface ListMarketSkillsParams {
     installed: 'all' | 'installed' | 'installable';
     cursor?: string;
     limit: number;
+    /** Reader-requested refresh: ignore fresh entries (they are still rewritten). */
+    refresh?: boolean;
 }
 export declare function listMarketSkills(params: ListMarketSkillsParams): Promise<MarketListResult>;
-export declare function getMarketSkillDetail(source: MarketSource, slug: string): Promise<{
+export declare function getMarketSkillDetail(source: MarketSource, slug: string, options?: {
+    force?: boolean;
+}): Promise<{
     skill: NormalizedSkillDetail;
     sourceStatus: SourceStatusInfo;
 }>;
 export declare function isValidMarketFilePath(filePath: string): boolean;
 export declare function getMarketFileContent(source: MarketSource, slug: string, filePath: string): Promise<MarketFileContent>;
 export declare function getMarketStatus(): Record<MarketSource, SourceStatusInfo>;
-/** Look up a single skill (used by install) — the detail path, bypassing list. */
+/**
+ * Look up a single skill for an install (the detail path, bypassing the list).
+ *
+ * Always forced: a cached manifest is a snapshot of the *catalogue*, and
+ * installing is the one action that has to be authorized by what upstream says
+ * right now — the file bytes are fetched fresh and hash-verified against the
+ * list, so the list must come from the same generation as those bytes.
+ */
 export declare function resolveMarketSkill(source: MarketSource, slug: string): Promise<NormalizedSkillDetail>;
 export {};

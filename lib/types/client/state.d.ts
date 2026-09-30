@@ -59,6 +59,8 @@ export interface MarketState {
         id: string;
     };
     detail: NormalizedSkillDetail | null;
+    /** Provenance of `detail`: when it was fetched upstream, and whether it is a snapshot. */
+    detailStatus: SourceStatusInfo | null;
     detailLoading: boolean;
     detailError: string | null;
     activeTab: 'overview' | 'files';
@@ -73,13 +75,18 @@ export interface MarketState {
 export interface MarketController {
     state: MarketState;
     readonly injected: MarketPageInjected;
-    refresh(): Promise<void>;
+    /** `force` is the reader's refresh: it must not be answered from the cache. */
+    refresh(options?: {
+        force?: boolean;
+    }): Promise<void>;
     loadMore(): Promise<void>;
     setQuery(q: string): void;
     setSource(source: MarketFilters['source']): void;
     setSecurity(security: MarketFilters['security']): void;
     setInstalledFilter(installed: MarketFilters['installed']): void;
-    openDetail(id: string): Promise<void>;
+    openDetail(id: string, options?: {
+        refresh?: boolean;
+    }): Promise<void>;
     closeDetail(): void;
     setTab(tab: 'overview' | 'files'): void;
     selectFile(path: string): Promise<void>;

@@ -14,7 +14,7 @@ The host performs provider requests and filesystem operations. It binds the avai
 
 The browser only calls same-origin `/api/skills-hub/*` endpoints, with same-origin credentials. Shared market imports in browser code are type-only. Browser runtime externals must belong to the Harness platform module table; host services and Node modules must not enter the browser bundle.
 
-`react-markdown` and `remark-gfm` are development dependencies compiled into the browser artifact. Rendering supports headings, tables, task lists and fenced code without relying on an optional host renderer. Raw HTML is skipped; dangerous URL protocols are filtered by the renderer, and external links use `noopener noreferrer`.
+`react-markdown` and `remark-gfm` are development dependencies compiled into the browser artifact. Rendering supports headings, tables, task lists and fenced code without relying on an optional host renderer. Raw HTML is skipped; dangerous URL protocols are filtered by the renderer, and external links use `noopener noreferrer`. `src/client/skill-markdown.ts` splits a document's YAML frontmatter from its body with a small subset parser compiled into the same bundle (scalars, inline/block sequences, `|`/`>` block scalars, one level of nested mapping kept as raw YAML): no YAML dependency enters the browser program, and the metadata block is rendered as structure instead of reaching the renderer, where its closing `---` would turn the whole block into a setext heading.
 
 The bundler explicitly selects the browser platform even though its output is a CommonJS factory. Both build-time import checks and manifest checks guard this boundary. CSS Modules use `--dsw-*` theme tokens and relative source IDs for portable output.
 
@@ -47,6 +47,8 @@ An `InstalledSkillRecord` has:
 
 Duplicate names/market IDs in separate roots remain separate rows with separate keys. Local endpoints accept keys, never arbitrary client-supplied paths. They freshly scan the allowed roots to resolve the entry. Removal renames the selected entry to a hidden temporary sibling before deletion; removing a link preserves its target. A flat file removal preserves its sibling files.
 
+A local detail read resolves the entry, reads its `SKILL.md`/flat document (2 MiB bound) and inventories the entry's own files: relative POSIX paths with size and detected language, dot-entries (including the provenance sidecar) excluded, at most 500 rows, symlinked files never followed. The document's frontmatter is returned verbatim as YAML text — the structured panel of a market detail is fed by upstream JSON that a hand-written skill does not have. A file read takes the same key plus a relative path: the path is validated (no absolute paths, no `..`, no empty segment), resolved inside the entry's real path, and rejected when a symlink would leave it, so the endpoint is never an arbitrary-file reader. A flat entry exposes only itself, never its siblings in the same root. Truncation at 300 KiB is reported, not thrown.
+
 Market installation uses staging and atomic publication, rejects directory conflicts, validates file paths and hashes when supplied, and writes a `.skills-hub.json` sidecar. The market-ID uninstall endpoint requires valid matching provenance; the explicit local-management endpoint can remove unmanaged entries after the UI confirmation. Both honor `allowUninstall`.
 
 After mutations the plugin refreshes its installed lookup. Harness's filesystem watcher handles skill catalog invalidation; the plugin does not forge filesystem observation events. Reading the catalog is best-effort and does not replace that watcher.
@@ -59,7 +61,7 @@ Providers normalize ClawHub and SkillHub into `NormalizedSkill`. A market ID is 
 
 Source status is `ok`, `degraded`, `failed` or `cached`, with optional fetch time/cache/error metadata. Provider failures remain visible independently; an unavailable source must not silently look like an empty marketplace.
 
-Current market limits are 5 MiB per file, 20 MiB total and 200 files per install. Market previews truncate after 300 KiB. ClawHub search results are capped at 50 because that search endpoint does not paginate. Local installed Markdown previews are limited to 2 MiB and reject oversized content.
+Current market limits are 5 MiB per file, 20 MiB total and 200 files per install. Market previews truncate after 300 KiB. ClawHub search results are capped at 50 because that search endpoint does not paginate. Local installed Markdown previews are limited to 2 MiB and reject oversized content; a single local file preview truncates after 300 KiB, matching the market preview policy.
 
 ## 5. HTTP and browser behavior
 
@@ -76,14 +78,18 @@ All paths below are relative to `/api/skills-hub`.
 | Method | Path / input | Success body |
 | --- | --- | --- |
 | GET | `/status` | `{ sources }` keyed by market source. |
-| GET | `/skills?q=&source=&security=&installed=&cursor=&limit=` | `{ items, nextCursor, sources }`. |
-| GET | `/skills/:source/:slug` | `{ skill, sourceStatus }`. |
+| GET | `/stats` | `{ stats }` cache counters: `hits`, `misses`, `staleServed`, `upstreamRequests`, `forcedRefreshes`. |
+| GET | `/skills?q=&source=&security=&installed=&cursor=&limit=&refresh=` | `{ items, nextCursor, sources }`. |
+| GET | `/skills/:source/:slug?refresh=` | `{ skill, sourceStatus }`. |
 | GET | `/skills/:source/:slug/file?path=…` | `{ file }`. |
 | POST | `/install`, JSON `{ id }` | `{ ok: true, installedPath, skill }`. |
 | POST | `/uninstall`, JSON `{ id }` | `{ ok: true, removedPath, skill }`; market-managed installation only. |
 | GET | `/installed` | `{ items: InstalledSkillRecord[] }`; no provider request. |
-| GET | `/installed/detail?key=…` | `{ item, markdown }`; reads the selected local copy. |
+| GET | `/installed/detail?key=…` | `{ item, markdown, frontmatter, files }`; reads the selected local copy, its raw YAML header and its own file inventory. |
+| GET | `/installed/file?key=…&path=…` | `{ file }` with `content`, `size`, `language`, `truncated`; the path must resolve inside the selected entry. |
 | POST | `/installed/uninstall`, JSON `{ key }` | `{ ok: true, removedPath, item }`; exact discovered entry. |
+
+`refresh` is `1`/`true` or `0`/`false` (absent means false); any other value is a `BAD_REQUEST`, because a refresh the Host cannot honour would let the panel present a cached answer as a fresh one. A refresh skips fresh cache entries for that request and rewrites them with what upstream returned.
 
 List `source` is `all`, `clawhub` or `skillhub`. `security` is `all`, `verified`, `benign`, `unknown` or `flagged`. `installed` is `all`, `installed` or `installable`; this filters the remote catalog and is distinct from the independent Installed view. `limit` is 1–100, defaulting to configured `pageSize`. Cursors are opaque and `null` means exhausted.
 
@@ -92,6 +98,14 @@ List `source` is `all`, `clawhub` or `skillhub`. `security` is `all`, `verified`
 The marketplace shows skeleton cards on initial loading and a detail skeleton immediately after opening a card. An intersection observer inside the actual list scroll area loads the next page as the sentinel approaches view. It preserves loaded cards, deduplicates results and avoids concurrent duplicate loads. Pagination failures expose retry without discarding existing results.
 
 Search/filter changes cancel superseded requests, reset pagination and reject stale responses. Installed management has its own loading, empty, error, search and refresh states. Its local detail reads the exact selected entry, and removal requires a confirmation showing its path; symlink removals explain that the target is preserved. Successful mutations update the displayed list and installed state. Buttons expose disabled/pending state during mutations.
+
+Both detail pages are full-panel views built on one shell (`SkillDetailShell`): the list is replaced, focus moves to the heading, and a back control returns to it. The market page keeps its tab and selected file in `MarketState`; the local page keeps them in its own state and never unmounts the inventory list, so the query and rows survive the round trip. The local page shows only what the filesystem proves — path, provenance, size, installed time, layout, the rendered SKILL.md and its own files — and omits market-only rows (author, downloads, security reports) rather than showing zeros. A skill with valid market provenance also offers "view in marketplace", which switches to the market section and opens its provider-backed page: upstream facts stay upstream, and the local page stays readable offline.
+
+Provenance is part of every answer. `sourceStatus.fetchedAt` is the moment the payload was *read from upstream* — a cache hit keeps the original timestamp instead of restamping it with the current clock — and `fromCache` says whether the answer came from a stored copy. The panel prints that age next to each source and, when a detail is a snapshot, offers the one action that reaches upstream (`refresh=1`). Installing never relies on a snapshot: the manifest is re-read with `refresh` semantics before the files are fetched and hash-verified, so a cached security verdict or file list can never authorize an install.
+
+The catalogue fetches the next page about one screen before the reader reaches the end of the list, and only after the reader has scrolled at least once: opening the panel and leaving must not cost a page nobody looked at. The request count is unchanged — the same page is fetched either way — it simply happens while the reader is still scrolling, so arriving at the sentinel finds data instead of starting a request. The look-ahead observer must be rooted at the list's own scroll container: the catalogue scrolls inside the host dock, and a viewport-rooted observer is clipped by that dock, which makes `rootMargin` a no-op there.
+
+Inside the Files tab, a markdown document opens rendered — frontmatter as structured metadata, body through the same GFM renderer — because SKILL.md is prose meant to be read. Installing remains a trust decision, so a preview/source switch keeps the exact bytes (line numbers, and a copy button pointed at what is on disk) one click away; selecting another file returns to the rendered form. Every other language is source-only, since a toggle there would promise a rendering that does not exist.
 
 ## 6. Configuration
 

@@ -20,7 +20,8 @@ import type { MarketSource } from '../../market/types.ts'
 import { InstallConfirmDialog } from '../components/InstallConfirmDialog.tsx'
 import { InstalledSkills } from '../components/InstalledSkills.tsx'
 import { MarketHome } from '../components/MarketHome.tsx'
-import { SkillDetailView, SkillDetailSkeleton } from '../components/SkillDetailView.tsx'
+import { SkillDetailView } from '../components/SkillDetailView.tsx'
+import { SkillDetailSkeleton } from '../components/SkillDetailShell.tsx'
 import { LocaleProvider, useT, type Translate } from '../locale-context.tsx'
 import { NS } from '../locales.ts'
 import {
@@ -71,7 +72,15 @@ function MarketPageSurface({ controller }: { controller: MarketController }): JS
       </nav>
       <div className={styles.body}>
         {section === 'installed' ? (
-          <InstalledSkills onChanged={() => { controller.closeDetail(); void controller.refresh() }} />
+          <InstalledSkills
+            onChanged={() => { controller.closeDetail(); void controller.refresh() }}
+            // A locally installed skill that carries market provenance opens
+            // the marketplace's own detail page: upstream facts stay upstream.
+            onOpenMarket={(id) => {
+              setSection('market')
+              void controller.openDetail(id)
+            }}
+          />
         ) : state.view.kind === 'home' ? (
           <MarketHome state={state} controller={controller} />
         ) : state.detail !== null ? (
@@ -142,6 +151,12 @@ function confirmSkillOf(state: MarketState, id: string): ConfirmSkill {
   const skill =
     (state.detail !== null && state.detail.id === id ? state.detail : null) ?? state.items.find((item) => item.id === id) ?? null
   if (skill !== null) {
+    // The dialog has to be able to say "this is a snapshot": which status
+    // applies depends on where the skill came from — the open detail page or
+    // the list.
+    const fromDetail = state.detail !== null && state.detail.id === id
+    const status = fromDetail ? state.detailStatus : state.sources[skill.source]
+    const snapshotAt = status?.fromCache === true ? status.fetchedAt : undefined
     return {
       id: skill.id,
       name: skill.name,
@@ -149,6 +164,7 @@ function confirmSkillOf(state: MarketState, id: string): ConfirmSkill {
       version: skill.version,
       securityStatus: skill.securityStatus,
       authorName: skill.author.displayName ?? skill.author.handle,
+      ...(snapshotAt === undefined ? {} : { snapshotAt }),
     }
   }
   return {

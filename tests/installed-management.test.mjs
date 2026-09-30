@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, symlink, readFile, lstat, rm } from 'node:fs
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { scanInstalledSkills, installedLookupFrom } from '../lib/skills/installed.js'
-import { readInstalledSkill, removeInstalledSkill } from '../lib/skills/management.js'
+import { readInstalledFile, readInstalledSkill, removeInstalledSkill } from '../lib/skills/management.js'
 
 async function fixture(run) {
   const base = await mkdtemp(join(tmpdir(), 'skills-management-'))
@@ -82,6 +82,11 @@ test('local management routes expose policy and honor exact-entry removal withou
     assert.equal(item.removable, false)
     const detail = await fetch(`${url}/installed/detail?key=${item.key}`)
     assert.match((await detail.json()).markdown, /Instructions/)
+    const file = await fetch(`${url}/installed/file?key=${item.key}&path=SKILL.md`)
+    assert.equal(file.status, 200)
+    assert.match((await file.json()).file.content, /Instructions/)
+    assert.equal((await fetch(`${url}/installed/file?key=${item.key}&path=..%2Fsecret.md`)).status, 400)
+    assert.equal((await fetch(`${url}/installed/file?key=${item.key}`)).status, 400)
     const remove = () => fetch(`${url}/installed/uninstall`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: item.key }) })
     assert.equal((await remove()).status, 405)
     allow = true
@@ -89,6 +94,80 @@ test('local management routes expose policy and honor exact-entry removal withou
     assert.equal(rescans, 1)
     assert.equal((await fetch(`${url}/installed/detail?key=${item.key}`)).status, 404)
   } finally { await new Promise(resolve => server.close(resolve)) }
+}))
+
+test('detail carries the raw frontmatter and the entry inventory, dot-entries excluded', () => fixture(async base => {
+  const roots = [join(base, 'dsh')]
+  await skill(roots[0], 'demo', '---\nname: Demo\ndescription: Example\nmetadata:\n  version: 1.2.3\n---\n# Instructions')
+  await writeFile(join(roots[0], 'demo', 'README.md'), '# Readme')
+  await writeFile(join(roots[0], 'demo', '.DS_Store'), 'junk')
+  await writeFile(join(roots[0], 'demo', '.skills-hub.json'), '{"id":"local:demo"}')
+  await mkdir(join(roots[0], 'demo', 'references'), { recursive: true })
+  await writeFile(join(roots[0], 'demo', 'references', 'flow.md'), 'body')
+
+  const item = (await scanInstalledSkills(roots)).find(entry => entry.dirName === 'demo')
+  const detail = await readInstalledSkill(roots, item.key)
+  assert.equal(detail.frontmatter, 'name: Demo\ndescription: Example\nmetadata:\n  version: 1.2.3')
+  assert.deepEqual(
+    detail.files.map(file => file.path),
+    ['README.md', 'references/flow.md', 'SKILL.md'],
+  )
+  assert.equal(detail.files.find(file => file.path === 'references/flow.md').language, 'markdown')
+  assert.ok(detail.files.find(file => file.path === 'SKILL.md').size > 0)
+  assert.match(detail.markdown, /# Instructions/)
+
+  // A flat skill is its own single document, frontmatter and all.
+  await writeFile(join(roots[0], 'flat.md'), '# Flat')
+  const flat = (await scanInstalledSkills(roots)).find(entry => entry.dirName === 'flat')
+  const flatDetail = await readInstalledSkill(roots, flat.key)
+  assert.deepEqual(flatDetail.files.map(file => file.path), ['flat.md'])
+  assert.equal(flatDetail.frontmatter, null)
+}))
+
+test('frontmatter extraction keeps YAML verbatim and ignores absent or unterminated headers', async () => {
+  const { extractFrontmatter } = await import('../lib/skills/management.js')
+  assert.equal(extractFrontmatter('---\nname: Demo\n---\n# Body'), 'name: Demo')
+  assert.equal(extractFrontmatter('\uFEFF---\r\nname: Demo\r\n...\r\n# Body'), 'name: Demo')
+  assert.equal(extractFrontmatter('---\n---\n# Body'), null)
+  assert.equal(extractFrontmatter('---\n# No closing marker'), null)
+  assert.equal(extractFrontmatter('# Body\n---\ntext'), null)
+})
+
+test('file previews stay inside the selected entry, and report truncation instead of failing', () => fixture(async base => {
+  const roots = [join(base, 'dsh')]
+  await skill(roots[0], 'demo')
+  await writeFile(join(roots[0], 'demo', 'big.md'), 'x'.repeat(400 * 1024))
+  await writeFile(join(base, 'secret.md'), 'outside')
+  await symlink(join(base, 'secret.md'), join(roots[0], 'demo', 'escape.md'))
+  await symlink(base, join(roots[0], 'demo', 'out'))
+  await writeFile(join(roots[0], 'flat.md'), '# Flat')
+  await symlink(join(roots[0], 'demo'), join(roots[0], 'linked'))
+
+  const items = await scanInstalledSkills(roots)
+  const bundle = items.find(entry => entry.dirName === 'demo')
+  const flat = items.find(entry => entry.dirName === 'flat')
+
+  const nested = await readInstalledFile(roots, bundle.key, 'SKILL.md')
+  assert.match(nested.content, /Instructions/)
+  assert.equal(nested.truncated, false)
+  assert.equal(nested.language, 'markdown')
+
+  const big = await readInstalledFile(roots, bundle.key, 'big.md')
+  assert.equal(big.truncated, true)
+  assert.equal(big.content.length, 300 * 1024)
+  assert.equal(big.size, 400 * 1024)
+
+  assert.equal((await readInstalledFile(roots, items.find(entry => entry.linked).key, 'SKILL.md')).truncated, false)
+  await assert.rejects(readInstalledFile(roots, bundle.key, ''), { status: 400 })
+  await assert.rejects(readInstalledFile(roots, bundle.key, '../secret.md'), { status: 400 })
+  await assert.rejects(readInstalledFile(roots, bundle.key, '/etc/passwd'), { status: 400 })
+  await assert.rejects(readInstalledFile(roots, bundle.key, 'escape.md'), { status: 400 })
+  await assert.rejects(readInstalledFile(roots, bundle.key, 'out/secret.md'), { status: 400 })
+  await assert.rejects(readInstalledFile(roots, bundle.key, 'missing.md'), { status: 404 })
+
+  // A flat skill exposes exactly itself, never its siblings in the same root.
+  assert.equal((await readInstalledFile(roots, flat.key, 'flat.md')).content, '# Flat')
+  await assert.rejects(readInstalledFile(roots, flat.key, 'demo/SKILL.md'), { status: 400 })
 }))
 
 test('oversized documents stay listed but bounded preview rejects; nested links never count target files', () => fixture(async base => {

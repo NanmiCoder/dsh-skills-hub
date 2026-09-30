@@ -31,17 +31,70 @@ export const MARKET_TTL = {
   fileContent: 30 * 60_000,
 } as const
 
+/** One fresh hit, together with the moment its payload was actually fetched. */
+export interface MarketCacheRecord<T> {
+  value: T
+  /** Epoch millis of the upstream read this payload came from. */
+  storedAt: number
+}
+
+/**
+ * Counters describing what the cache actually did.
+ *
+ * "How much traffic does the cache save" used to be an argument. Every claim
+ * about hits, misses and needless upstream reads can now be checked against
+ * these numbers on a real machine instead of reasoned about.
+ */
+export interface MarketCacheStats {
+  /** Answers served from a fresh in-memory entry. */
+  hits: number
+  /** Lookups that had to go upstream (including forced refreshes). */
+  misses: number
+  /** Answers served from an expired entry because the source failed. */
+  staleServed: number
+  /** Upstream page/detail requests actually issued. */
+  upstreamRequests: number
+  /** Refreshes a reader explicitly asked for. */
+  forcedRefreshes: number
+}
+
+const stats: MarketCacheStats = {
+  hits: 0,
+  misses: 0,
+  staleServed: 0,
+  upstreamRequests: 0,
+  forcedRefreshes: 0,
+}
+
+/** Record one cache event. Kept tiny so it can sit on the request path. */
+export function noteMarketStat(entry: keyof MarketCacheStats): void {
+  stats[entry] += 1
+}
+
+/** Snapshot of the counters; the caller cannot mutate the live object. */
+export function getMarketStats(): MarketCacheStats {
+  return { ...stats }
+}
+
 class MarketCache {
   private entries = new Map<string, CacheEntry>()
 
-  get<T>(key: string): T | undefined {
+  /**
+   * Read a fresh entry.
+   *
+   * The record carries `storedAt` on purpose: a hit is a *snapshot*, and the
+   * caller must be able to say how old it is. Returning only the payload is how
+   * the panel ended up reporting "fetched just now" for data it had not touched
+   * in ten minutes.
+   */
+  getRecord<T>(key: string): MarketCacheRecord<T> | undefined {
     const entry = this.entries.get(key)
     if (!entry) return undefined
     if (Date.now() > entry.expiresAt) return undefined
     // LRU touch: re-insert so the oldest key is the least recently used one.
     this.entries.delete(key)
     this.entries.set(key, entry)
-    return entry.value as T
+    return { value: entry.value as T, storedAt: entry.storedAt }
   }
 
   /** Returns the entry even when expired — used for the stale-while-error fallback. */
@@ -131,8 +184,9 @@ export function resetSourceHealth(): void {
   }
 }
 
-/** Test hook: drop cached payloads and reset source health. */
+/** Test hook: drop cached payloads, reset source health and the counters. */
 export function resetMarketCache(): void {
   marketCache.clear()
   resetSourceHealth()
+  for (const entry of Object.keys(stats) as Array<keyof MarketCacheStats>) stats[entry] = 0
 }

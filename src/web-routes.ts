@@ -30,7 +30,8 @@ import {
   listMarketSkills,
   type ListMarketSkillsParams,
 } from './market/market-service.ts'
-import { readInstalledSkill, removeInstalledSkill } from './skills/management.ts'
+import { getMarketStats } from './market/cache.ts'
+import { readInstalledFile, readInstalledSkill, removeInstalledSkill } from './skills/management.ts'
 import { scanInstalledSkills } from './skills/installed.ts'
 import { resolveSkillsScanRoots } from './skills/root.ts'
 import {
@@ -338,8 +339,29 @@ function parseBodyId(body: Record<string, unknown>): { source: MarketSource; slu
   return parsed
 }
 
+/**
+ * `refresh` query parameter.
+ *
+ * A reader who presses refresh means "do not answer me from your cache". Before
+ * this existed the request looked exactly like the automatic one, so the panel
+ * re-rendered the same cached page and presented it as fresh. Only the explicit
+ * spellings are accepted; anything else is a bad request rather than a silently
+ * ignored intent.
+ */
+function parseRefresh(url: URL): boolean {
+  const raw = url.searchParams.get('refresh')
+  if (raw === null || raw === '' || raw === '0' || raw === 'false') return false
+  if (raw === '1' || raw === 'true') return true
+  throw new RouteError(400, 'BAD_REQUEST', `Invalid refresh flag: ${raw}`)
+}
+
 async function handleStatus(res: ServerResponse): Promise<void> {
   sendJson(res, 200, { sources: getMarketStatus() })
+}
+
+/** Cache and upstream counters: the evidence behind every traffic claim. */
+async function handleStats(res: ServerResponse): Promise<void> {
+  sendJson(res, 200, { stats: getMarketStats() })
 }
 
 async function handleList(url: URL, res: ServerResponse): Promise<void> {
@@ -350,13 +372,14 @@ async function handleList(url: URL, res: ServerResponse): Promise<void> {
     installed: enumQuery<(typeof INSTALLED_FILTERS)[number]>(url, 'installed', INSTALLED_FILTERS, 'all'),
     cursor: optionalQuery(url, 'cursor', MAX_CURSOR_LENGTH),
     limit: parseLimit(url),
+    refresh: parseRefresh(url),
   }
   const result: MarketListResult = await listMarketSkills(params)
   sendJson(res, 200, result)
 }
 
-async function handleDetail(source: MarketSource, slug: string, res: ServerResponse): Promise<void> {
-  sendJson(res, 200, await getMarketSkillDetail(source, slug))
+async function handleDetail(source: MarketSource, slug: string, url: URL, res: ServerResponse): Promise<void> {
+  sendJson(res, 200, await getMarketSkillDetail(source, slug, { force: parseRefresh(url) }))
 }
 
 async function handleFile(source: MarketSource, slug: string, url: URL, res: ServerResponse): Promise<void> {
@@ -435,10 +458,28 @@ async function handle(
     await handleStatus(res)
     return
   }
+  if (head === 'stats' && segments.length === 1) {
+    requireMethod(method, 'GET')
+    await handleStats(res)
+    return
+  }
   if (head === 'installed' && segments.length === 2 && second === 'detail') {
     requireMethod(method, 'GET')
     const roots = await resolveSkillsScanRoots(await deps.skillsRoot())
     sendJson(res, 200, await readInstalledSkill(roots, url.searchParams.get('key') ?? ''))
+    return
+  }
+  if (head === 'installed' && segments.length === 2 && second === 'file') {
+    requireMethod(method, 'GET')
+    const roots = await resolveSkillsScanRoots(await deps.skillsRoot())
+    // Both parameters are validated inside: a key must resolve to a freshly
+    // discovered entry, and the path must stay inside that entry.
+    const file = await readInstalledFile(
+      roots,
+      url.searchParams.get('key') ?? '',
+      url.searchParams.get('path') ?? '',
+    )
+    sendJson(res, 200, { file })
     return
   }
   if (head === 'installed' && segments.length === 2 && second === 'uninstall') {
@@ -478,7 +519,7 @@ async function handle(
       const slug = parseSlug(third)
       requireMethod(method, 'GET')
       if (segments.length === 3) {
-        await handleDetail(source, slug, res)
+        await handleDetail(source, slug, url, res)
       } else {
         await handleFile(source, slug, url, res)
       }

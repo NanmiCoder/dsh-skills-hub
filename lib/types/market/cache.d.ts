@@ -19,9 +19,46 @@ export declare const MARKET_TTL: {
     readonly files: number;
     readonly fileContent: number;
 };
+/** One fresh hit, together with the moment its payload was actually fetched. */
+export interface MarketCacheRecord<T> {
+    value: T;
+    /** Epoch millis of the upstream read this payload came from. */
+    storedAt: number;
+}
+/**
+ * Counters describing what the cache actually did.
+ *
+ * "How much traffic does the cache save" used to be an argument. Every claim
+ * about hits, misses and needless upstream reads can now be checked against
+ * these numbers on a real machine instead of reasoned about.
+ */
+export interface MarketCacheStats {
+    /** Answers served from a fresh in-memory entry. */
+    hits: number;
+    /** Lookups that had to go upstream (including forced refreshes). */
+    misses: number;
+    /** Answers served from an expired entry because the source failed. */
+    staleServed: number;
+    /** Upstream page/detail requests actually issued. */
+    upstreamRequests: number;
+    /** Refreshes a reader explicitly asked for. */
+    forcedRefreshes: number;
+}
+/** Record one cache event. Kept tiny so it can sit on the request path. */
+export declare function noteMarketStat(entry: keyof MarketCacheStats): void;
+/** Snapshot of the counters; the caller cannot mutate the live object. */
+export declare function getMarketStats(): MarketCacheStats;
 declare class MarketCache {
     private entries;
-    get<T>(key: string): T | undefined;
+    /**
+     * Read a fresh entry.
+     *
+     * The record carries `storedAt` on purpose: a hit is a *snapshot*, and the
+     * caller must be able to say how old it is. Returning only the payload is how
+     * the panel ended up reporting "fetched just now" for data it had not touched
+     * in ten minutes.
+     */
+    getRecord<T>(key: string): MarketCacheRecord<T> | undefined;
     /** Returns the entry even when expired — used for the stale-while-error fallback. */
     getStale<T>(key: string): {
         value: T;
@@ -44,6 +81,6 @@ export declare function markSourceHealth(source: MarketSource, status: SourceHea
 export declare function getSourceHealth(source: MarketSource): SourceStatusInfo;
 /** Test hook: forget every recorded success/failure. */
 export declare function resetSourceHealth(): void;
-/** Test hook: drop cached payloads and reset source health. */
+/** Test hook: drop cached payloads, reset source health and the counters. */
 export declare function resetMarketCache(): void;
 export {};

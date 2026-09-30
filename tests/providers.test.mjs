@@ -38,7 +38,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
   const { configureProviderFetch, getProviderBase, MarketHttpError } = await load('provider-fetch.js')
   const { clawhubProvider, resetClawhubOwnerCache } = await load('clawhub-provider.js')
   const { skillhubProvider } = await load('skillhub-provider.js')
-  const { resetMarketCache, getSourceHealth } = await load('cache.js')
+  const { resetMarketCache, getSourceHealth, getMarketStats } = await load('cache.js')
   const {
     listMarketSkills,
     getMarketSkillDetail,
@@ -567,6 +567,71 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     assert.deepEqual(requests, [])
     assert.equal(cached.sourceStatus.fromCache, true)
     assert.equal(cached.skill.id, 'clawhub:git')
+    // …and it reports the moment that payload was actually fetched, not "now".
+    // This is the assertion that keeps a snapshot from masquerading as a fresh
+    // read; without it the timestamp is whatever the response happened to see.
+    assert.equal(cached.sourceStatus.fetchedAt, sourceStatus.fetchedAt)
+  })
+
+  await subtest('a forced refresh ignores the cache, rewrites it, and is counted', async () => {
+    resetMarketCache()
+    requests.length = 0
+    const first = await getMarketSkillDetail('clawhub', 'git')
+    const fetchedRequests = requests.length
+    assert.ok(fetchedRequests > 0)
+    assert.equal(first.sourceStatus.fromCache, false)
+
+    // Automatic read: still the same snapshot, still no upstream traffic.
+    requests.length = 0
+    const again = await getMarketSkillDetail('clawhub', 'git')
+    assert.deepEqual(requests, [])
+    assert.equal(again.sourceStatus.fetchedAt, first.sourceStatus.fetchedAt)
+
+    // Reader-requested refresh: real requests, and a new fetch time.
+    requests.length = 0
+    const forced = await getMarketSkillDetail('clawhub', 'git', { force: true })
+    assert.equal(requests.length, fetchedRequests)
+    assert.equal(forced.sourceStatus.fromCache, false)
+    assert.equal(typeof forced.sourceStatus.fetchedAt, 'number')
+
+    // The refreshed payload replaced the entry, so the next automatic read is
+    // served from cache again — a refresh costs one request, not one per reader.
+    requests.length = 0
+    const afterForced = await getMarketSkillDetail('clawhub', 'git')
+    assert.deepEqual(requests, [])
+    assert.equal(afterForced.sourceStatus.fromCache, true)
+
+    const stats = getMarketStats()
+    assert.ok(stats.hits >= 2, `expected cache hits to be counted, got ${stats.hits}`)
+    assert.ok(stats.forcedRefreshes >= 1)
+    assert.ok(stats.upstreamRequests >= fetchedRequests)
+  })
+
+  await subtest('a forced list refresh re-reads upstream; an unforced one reuses the page', async () => {
+    resetMarketCache()
+    requests.length = 0
+    await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 3 })
+    const pageRequests = requests.length
+    assert.ok(pageRequests > 0)
+
+    requests.length = 0
+    const cachedPage = await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 3 })
+    assert.deepEqual(requests, [])
+    assert.equal(cachedPage.sources.clawhub.fromCache, true)
+    assert.equal(typeof cachedPage.sources.clawhub.fetchedAt, 'number')
+
+    requests.length = 0
+    const refreshed = await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 3, refresh: true })
+    assert.equal(requests.length, pageRequests)
+    assert.equal(refreshed.sources.clawhub.fromCache, false)
+
+    // The rule the whole cache debate turns on: a *new* cursor page is a new
+    // request no matter what is cached, so pagination traffic must never be
+    // claimed as a cache saving. Written as an assertion so a later change
+    // cannot quietly "fix" it.
+    requests.length = 0
+    await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 3, cursor: refreshed.nextCursor ?? undefined })
+    assert.equal(requests.length, pageRequests)
   })
 
   await subtest('clawhub detail(): fetches Markdown when the catalogue omits description', async () => {

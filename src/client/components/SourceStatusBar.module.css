@@ -49,6 +49,15 @@
   color: var(--dsw-alias-label-tertiary, #81858c);
 }
 
+/* Provenance, not decoration: this pill says the answer came from a stored
+   snapshot, so it stays legible without competing with the source name. */
+.snapshot {
+  padding-left: 6px;
+  border-left: 1px solid var(--dsw-alias-border-l2, #0000001a);
+  color: var(--dsw-alias-label-secondary, #61666b);
+  font-variant-numeric: tabular-nums;
+}
+
 .refresh {
   flex: none;
 }

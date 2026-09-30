@@ -189,7 +189,11 @@ function parseMarketId(id: string): { source: MarketSource; slug: string } {
 }
 
 /** Search the catalogue (market sources) — the remote list page. */
-export async function fetchMarketList(query: MarketQuery, signal?: AbortSignal): Promise<MarketListResult> {
+export async function fetchMarketList(
+  query: MarketQuery,
+  signal?: AbortSignal,
+  options: { refresh?: boolean } = {},
+): Promise<MarketListResult> {
   const search = new URLSearchParams()
   const q = query.q?.trim()
   if (q) search.set('q', q)
@@ -199,6 +203,9 @@ export async function fetchMarketList(query: MarketQuery, signal?: AbortSignal):
   if (query.installed !== 'all') search.set('installed', query.installed)
   if (query.cursor) search.set('cursor', query.cursor)
   if (typeof query.limit === 'number' && Number.isFinite(query.limit)) search.set('limit', String(query.limit))
+  // A reader-requested refresh has to reach the Host: without the flag the
+  // request is indistinguishable from an automatic one and comes back cached.
+  if (options.refresh === true) search.set('refresh', '1')
   const suffix = search.toString()
   return getJson<MarketListResult>(`/skills${suffix === '' ? '' : `?${suffix}`}`, signal)
 }
@@ -207,10 +214,12 @@ export async function fetchMarketList(query: MarketQuery, signal?: AbortSignal):
 export async function fetchSkillDetail(
   id: string,
   signal?: AbortSignal,
+  options: { refresh?: boolean } = {},
 ): Promise<{ skill: NormalizedSkillDetail; sourceStatus: SourceStatusInfo }> {
   const { source, slug } = parseMarketId(id)
+  const suffix = options.refresh === true ? '?refresh=1' : ''
   return getJson<{ skill: NormalizedSkillDetail; sourceStatus: SourceStatusInfo }>(
-    `/skills/${source}/${encodeURIComponent(slug)}`,
+    `/skills/${source}/${encodeURIComponent(slug)}${suffix}`,
     signal,
   )
 }
@@ -257,9 +266,49 @@ export async function uninstallSkill(id: string): Promise<{ removedPath: string;
   return { removedPath: payload.removedPath, skill: payload.skill }
 }
 
+/**
+ * One file of an installed skill, as the file tab lists it.
+ *
+ * `language` is the Host's mapping from the file extension and `size` is the
+ * real size on disk, so a truncated preview still reports the document it came
+ * from rather than the bytes that fit through the endpoint.
+ */
+export interface InstalledFileEntry {
+  path: string
+  size: number
+  language: string
+}
+
+/**
+ * The local skill page's payload.
+ *
+ * `markdown` is the whole SKILL.md (frontmatter included) and `frontmatter` is
+ * that same header as YAML text: the market detail's structured metadata panel
+ * is fed by upstream JSON, and a hand-written skill has no such record.
+ */
+export interface InstalledSkillDetail {
+  item: InstalledSkillRecord
+  markdown: string
+  frontmatter: string | null
+  files: InstalledFileEntry[]
+}
+
 /** Preview the exact local copy without consulting a market provider. */
-export function fetchInstalledDetail(key: string, signal?: AbortSignal): Promise<{ item: InstalledSkillRecord; markdown: string }> {
+export function fetchInstalledDetail(key: string, signal?: AbortSignal): Promise<InstalledSkillDetail> {
   return getJson(`/installed/detail?key=${encodeURIComponent(key)}`, signal)
+}
+
+/** One file of an installed skill; the Host validates the key and contains the path. */
+export async function fetchInstalledFile(
+  key: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<MarketFileContent> {
+  const payload = await getJson<{ file: MarketFileContent }>(
+    `/installed/file?key=${encodeURIComponent(key)}&path=${encodeURIComponent(path)}`,
+    signal,
+  )
+  return payload.file
 }
 
 /** Remove a specifically selected local entry after the management UI confirmation. */

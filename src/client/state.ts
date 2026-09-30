@@ -87,6 +87,8 @@ export interface MarketState {
   error: string | null
   view: { kind: 'home' } | { kind: 'detail'; id: string }
   detail: NormalizedSkillDetail | null
+  /** Provenance of `detail`: when it was fetched upstream, and whether it is a snapshot. */
+  detailStatus: SourceStatusInfo | null
   detailLoading: boolean
   detailError: string | null
   activeTab: 'overview' | 'files'
@@ -102,13 +104,14 @@ export interface MarketState {
 export interface MarketController {
   state: MarketState
   readonly injected: MarketPageInjected
-  refresh(): Promise<void>
+  /** `force` is the reader's refresh: it must not be answered from the cache. */
+  refresh(options?: { force?: boolean }): Promise<void>
   loadMore(): Promise<void>
   setQuery(q: string): void
   setSource(source: MarketFilters['source']): void
   setSecurity(security: MarketFilters['security']): void
   setInstalledFilter(installed: MarketFilters['installed']): void
-  openDetail(id: string): Promise<void>
+  openDetail(id: string, options?: { refresh?: boolean }): Promise<void>
   closeDetail(): void
   setTab(tab: 'overview' | 'files'): void
   selectFile(path: string): Promise<void>
@@ -155,6 +158,7 @@ function initialState(): MarketState {
     error: null,
     view: { kind: 'home' },
     detail: null,
+    detailStatus: null,
     detailLoading: false,
     detailError: null,
     activeTab: 'overview',
@@ -230,7 +234,7 @@ function createInternalController(): MarketControllerInternal {
 
   // Response caches survive navigation inside the panel; they are keyed by id so
   // a returning reader sees the skill they left, not a spinner.
-  const detailCache = new Map<string, NormalizedSkillDetail>()
+  const detailCache = new Map<string, { skill: NormalizedSkillDetail; status: SourceStatusInfo }>()
   const fileCache = new Map<string, MarketFileContent>()
 
   // Request bookkeeping. Sequences are *only* bumped by the family they belong
@@ -302,11 +306,13 @@ function createInternalController(): MarketControllerInternal {
     const patch: Partial<MarketState> = { items }
     if (state.detail !== null && state.detail.id === updated.id) {
       const patched = patchDetail(state.detail, updated)
-      detailCache.set(updated.id, patched)
+      detailCache.set(updated.id, { skill: patched, status: state.detailStatus ?? { status: 'ok' } })
       patch.detail = patched
     } else {
       const cached = detailCache.get(updated.id)
-      if (cached !== undefined) detailCache.set(updated.id, patchDetail(cached, updated))
+      if (cached !== undefined) {
+        detailCache.set(updated.id, { skill: patchDetail(cached.skill, updated), status: cached.status })
+      }
     }
     commit(patch)
   }
@@ -319,7 +325,7 @@ function createInternalController(): MarketControllerInternal {
    * development double-invocation repeats it. A different filter set always
    * issues a fresh request.
    */
-  async function refresh(): Promise<void> {
+  async function refresh(options: { force?: boolean } = {}): Promise<void> {
     cancelDebounce()
     // A refresh also follows external local management changes.
     detailCache.clear()
@@ -348,6 +354,9 @@ function createInternalController(): MarketControllerInternal {
             limit: PAGE_SIZE,
           },
           controller.signal,
+          // The reader's refresh must reach the Host cache; an automatic load
+          // is happy to be answered from it.
+          { refresh: options.force === true },
         )
         if (sequence !== listSequence) return
         commit({
@@ -435,19 +444,22 @@ function createInternalController(): MarketControllerInternal {
     return state.view.kind === 'detail' && state.view.id === id
   }
 
-  async function loadDetail(id: string): Promise<void> {
+  async function loadDetail(id: string, options: { refresh?: boolean } = {}): Promise<void> {
     const sequence = ++detailSequence
     detailAbort?.abort()
     const controller = new AbortController()
     detailAbort = controller
     try {
-      const { skill, sourceStatus } = await fetchSkillDetail(id, controller.signal)
+      const { skill, sourceStatus } = await fetchSkillDetail(id, controller.signal, {
+        refresh: options.refresh === true,
+      })
       // The reader may have closed the panel view or opened another skill while
       // this was in flight; the newest request owns the pane.
       if (sequence !== detailSequence || !isCurrentDetail(id)) return
-      detailCache.set(id, skill)
+      detailCache.set(id, { skill, status: sourceStatus })
       commit({
         detail: skill,
+        detailStatus: sourceStatus,
         detailLoading: false,
         detailError: null,
         sources: mergeSourceStatus(state.sources, skill.source, sourceStatus),
@@ -459,8 +471,8 @@ function createInternalController(): MarketControllerInternal {
   }
 
   /** Open one skill: cache first, network only when the cache misses. */
-  async function openDetail(id: string): Promise<void> {
-    const cached = detailCache.get(id)
+  async function openDetail(id: string, options: { refresh?: boolean } = {}): Promise<void> {
+    const cached = options.refresh === true ? undefined : detailCache.get(id)
     commit({
       view: { kind: 'detail', id },
       activeTab: 'overview',
@@ -469,11 +481,13 @@ function createInternalController(): MarketControllerInternal {
       detailError: null,
     })
     if (cached !== undefined) {
-      commit({ detail: cached, detailLoading: false })
+      // The stored provenance travels with the stored payload: a reader coming
+      // back to this skill must not be told the copy is fresher than it is.
+      commit({ detail: cached.skill, detailStatus: cached.status, detailLoading: false })
       return
     }
     commit({ detail: null, detailLoading: true })
-    await loadDetail(id)
+    await loadDetail(id, options)
   }
 
   function closeDetail(): void {
@@ -486,6 +500,7 @@ function createInternalController(): MarketControllerInternal {
     commit({
       view: { kind: 'home' },
       detail: null,
+      detailStatus: null,
       detailLoading: false,
       detailError: null,
       file: null,

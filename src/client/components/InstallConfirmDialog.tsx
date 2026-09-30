@@ -1,6 +1,7 @@
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarketSource, SecurityStatus } from '../../market/types.ts'
 import { useT } from '../locale-context.tsx'
+import { formatAge, formatStamp } from '../relative-time.ts'
 import { AlertIcon, DownloadIcon } from '../icons.tsx'
 import { SecurityBadge } from './SecurityBadge.tsx'
 import styles from './InstallConfirmDialog.module.css'
@@ -13,6 +14,12 @@ export interface InstallConfirmSkill {
   version?: string
   securityStatus: SecurityStatus
   authorName: string
+  /**
+   * When the catalogue data behind this dialog was read from upstream, if it
+   * came from a snapshot. Installing is a trust decision, so the confirmation
+   * cannot present a cached security verdict as a fresh one.
+   */
+  snapshotAt?: number
 }
 
 /**
@@ -102,6 +109,13 @@ export function InstallConfirmDialog(props: {
           <dd className={`${styles.value} ${styles.path}`}>…/skills/{slugOf(skill.id).toLowerCase()}/</dd>
         </div>
       </dl>
+
+      {skill.snapshotAt !== undefined && (
+        <p className={styles.risk} role="note" title={formatStamp(skill.snapshotAt)}>
+          <AlertIcon size={16} className={styles.riskIcon} />
+          <span>{t('installSnapshot', { age: formatAge(t, skill.snapshotAt) })}</span>
+        </p>
+      )}
 
       {risky && (
         <p className={styles.risk} role="note">

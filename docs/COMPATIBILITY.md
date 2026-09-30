@@ -29,3 +29,27 @@ Ego Lite drove the actual host UI. Slow fixture upstream responses made the load
 `pnpm pack:check` passed 44 tests without failures or skips, including live provider list/detail/file/install/uninstall, request-origin fencing, local removal policy, duplicate paths, symlink preservation, bounded file reads, Markdown rendering and controller concurrency. A final clean build and tarball closure check followed the visual/style fixes. npm publication dry-run and registry name/version preflight succeeded. No package was published, Git tag created, repository visibility changed or active user profile modified. Local npm authentication was absent (`npm whoami`: `ENEEDAUTH`); publication requires an authorized login or the documented CI secret.
 
 Local-only logs and screenshots are kept in the ignored `artifacts/` directory. CI covers Node 22.19 and 24; those CI jobs and a native desktop launch were not run in this local acceptance.
+
+## Installed-skill detail revision — 2026-09-30
+
+The local skill detail moved from the primitive's 380px modal to a full-panel page on the shared detail shell. Re-verified on the same cohort (`@deepseek-ai/dsh@0.2.0-rc.2` from npm, macOS arm64 / Node 26.7.0) with an isolated `DSH_HOME`/`DSH_AGENTS_HOME`, a disposable Web profile and a tarball install of this revision; the user's real profile was not touched.
+
+The run covered: the installed inventory (six rows), a search query surviving the round trip to the detail and back (with focus returned to the row that was opened), the market-installed skill's page (provenance badge, path line, 4-file inventory, rendered GFM table, collapsed YAML metadata, rail facts, "view in marketplace" opening the provider-backed page), a hand-placed skill (market rows absent rather than zero, no marketplace link), a symlink entry (linked badge), the Files tab with per-file preview switching, and removal from the detail page — confirmation showing the exact path, then row and directory both gone. Focus lands on the heading when the page opens; there is no horizontal overflow at 760px; light and dark themes were both inspected; the console stayed clean.
+
+One defect was found and fixed by this run: the uninstall confirmation was rendered only in the list branch, so the detail page's removal button did nothing.
+
+Deviation from the procedure above: Ego Lite's browser skill was not available to this session, so the drive used headless Chromium (Playwright 1.60.0) instead. Screenshots are in `artifacts/local-detail-acceptance/`; the results are recorded as observed, not inferred from fixture tests.
+
+## Markdown file preview revision — 2026-09-30
+
+The Files tab now renders markdown (frontmatter split into the structured metadata panel, body through the bundled GFM renderer) and keeps the exact bytes behind a preview/source switch. Verified with **ego-browser 0.5.1.13** against an isolated profile on the same host cohort, driving the real UI: an installed skill (`skillhub:anti-fraud`, 4 files) and a market skill (`clawhub:skill-vetter`, 2 files, live upstream).
+
+Recorded results — installed skill, Files tab: preview showed 1 table, 4 headings, 6 list items and 1 code block with the metadata panel and no literal `**`; the source view showed 67 line-number spans, the raw `name: anti-fraud` header and the literal `**先定级，再开口**`. Selecting another file returned to the rendered form. Market skill, Files tab: preview showed 12 headings, 15 list items, 5 code blocks and 1 table, again with no literal `**`; source showed 278 line-number spans and the raw `name: skill-vetter` header. Screenshots are in `artifacts/markdown-preview-verify/`.
+
+This run used the Ego Lite browser as the project procedure requires; the earlier Playwright deviation applied only to the revision above.
+
+## Provenance and look-ahead revision — 2026-09-30
+
+Cache answers now carry the moment they were read from upstream instead of being restamped with the current clock, a reader-requested refresh (`refresh=1`) reaches upstream, the panel prints the snapshot age, and the next catalogue page is fetched one screen before it is needed. Verified in an isolated profile on the same cohort, driving the real UI and the plugin's own endpoints.
+
+Recorded results: two identical list reads returned `fromCache: false` then `fromCache: true` **with the same `fetchedAt`**; `refresh=1` returned `fromCache: false` with a newer timestamp while `forcedRefreshes` and `upstreamRequests` advanced by one each; `refresh=maybe` was rejected with 400; the status bar rendered `ClawHub 正常 快照 刚刚`; a fresh page with no scrolling issued **0** cursor requests; scrolling to within 708px of the container's end (sentinel still 639px below the fold) issued cursor requests immediately, which is the look-ahead — measured with a viewport-rooted observer reporting "not intersecting" for the same sentinel, confirming the container root is required. Screenshots are in `artifacts/p0-p1-verify/`.

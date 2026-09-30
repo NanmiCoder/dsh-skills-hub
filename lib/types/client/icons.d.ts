@@ -69,3 +69,7 @@ export declare function ChevronRightIcon({ size, className }: SkillsHubIconProps
 export declare function CloseIcon({ size, className }: SkillsHubIconProps): JSX.Element;
 /** Price tag: leading glyph of a card's tag row. */
 export declare function TagIcon({ size, className }: SkillsHubIconProps): JSX.Element;
+/** Folder: leading glyph of the installed skill's location line. */
+export declare function FolderIcon({ size, className }: SkillsHubIconProps): JSX.Element;
+/** Arrow leaving a frame: open the same skill in the marketplace. */
+export declare function ExternalLinkIcon({ size, className }: SkillsHubIconProps): JSX.Element;

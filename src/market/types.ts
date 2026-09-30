@@ -191,7 +191,8 @@ export function sanitizeDirName(slug: string): string | null {
 }
 
 const LANG_MAP: Record<string, string> = {
-  md: 'markdown', ts: 'typescript', tsx: 'typescript',
+  md: 'markdown', markdown: 'markdown', mdx: 'markdown',
+  ts: 'typescript', tsx: 'typescript',
   js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
   json: 'json', yaml: 'yaml', yml: 'yaml', sh: 'bash', bash: 'bash', zsh: 'bash',
   py: 'python', toml: 'toml', css: 'css', html: 'html',
