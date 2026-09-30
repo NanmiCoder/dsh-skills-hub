@@ -19,6 +19,8 @@
 
 Search ClawHub and SkillHub, read a skill’s instructions, and install it into Harness. Manage marketplace installations and existing local skills together in **Installed**.
 
+Current version: **0.0.2**. Browsed lists, details and file previews are cached locally for 60 minutes by default and remain available after restarting the desktop app. [Release notes](./release-notes/v0.0.2.md)
+
 <p align="center">
   <img src="./assets/readme/marketplace.png" width="100%" alt="Skills Hub marketplace with search, filters and skill cards.">
 </p>
@@ -28,6 +30,7 @@ Search ClawHub and SkillHub, read a skill’s instructions, and install it into 
 | **Discover skills** | Search and filter ClawHub and SkillHub together, with more results as you scroll. |
 | **Preview before installing** | Read instructions, inspect files and check security reports from the source. |
 | **Manage installed skills** | Search local skills, inspect their source and installation path, and confirm removal. |
+| **Local cache** | Reuse browsed pages, details and file previews across desktop restarts. |
 
 ## Quick start
 
@@ -44,7 +47,7 @@ https://github.com/NanmiCoder/dsh-skills-hub
 **Or the npm package name**
 
 ```text
-@nanmicoder/dsh-skills-hub
+@nanmicoder/dsh-skills-hub@0.0.2
 ```
 
 Click **Install → Enable now**, then open **Skills Hub** from the sidebar.
