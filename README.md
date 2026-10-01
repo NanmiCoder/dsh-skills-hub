@@ -67,4 +67,13 @@ https://github.com/NanmiCoder/dsh-skills-hub
 
 卸载前会显示具体位置，供你确认。若只想移除 Skills Hub 插件，在桌面端 **插件** 页面打开 **@nanmicoder/dsh-skills-hub**，点击 **卸载**；已安装的技能会保留。
 
+## 致谢与版权
+
+Skills Hub 的技能全部来自 [ClawHub](https://clawhub.ai) 和 [SkillHub](https://skillhub.cn)。感谢这两个平台的维护者，以及在上面发布技能的每一位作者。本插件只是让你在 Harness 里更方便地找到并安装这些技能。
+
+- **技能版权归原作者所有**，以每个技能自己声明的许可证为准。本仓库的 MIT 许可证只适用于 Skills Hub 插件自身的代码，不适用于任何技能。
+- **安装时从上游实时下载**。本仓库不托管、不转售任何技能内容。随插件发布的精选清单只包含名称、简介、分类和下载数等索引信息，用于展示，并附带指向原始页面的链接。
+- **ClawHub、SkillHub 及其标识归各自所有者所有**。Skills Hub 是独立的社区项目，与 ClawHub、SkillHub 及 DeepSeek 均无隶属或背书关系。
+- 如果你是技能作者或平台方，希望调整或移除展示的信息，请[提交 issue](https://github.com/NanmiCoder/dsh-skills-hub/issues)，我们会尽快处理。
+
 [反馈问题](https://github.com/NanmiCoder/dsh-skills-hub/issues) · [高级配置](./docs/CONFIGURATION.md) · [参与开发](./CONTRIBUTING.md) · [MIT 许可证](./LICENSE)

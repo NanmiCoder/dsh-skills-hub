@@ -67,4 +67,13 @@ Use **Installed** to view and remove marketplace installations and existing loca
 
 The removal dialog shows the exact location for you to confirm. To remove Skills Hub itself, open **@nanmicoder/dsh-skills-hub** on the desktop **Plugins** page and click **Uninstall**. Your installed skills will remain.
 
+## Acknowledgements and copyright
+
+Every skill in Skills Hub comes from [ClawHub](https://clawhub.ai) or [SkillHub](https://skillhub.cn). Thanks to the people who run both platforms and to every author who publishes there. This plugin only makes their skills easier to find and install from Harness.
+
+- **Skills belong to their authors** and are governed by each skill's own license. This repository's MIT license covers the Skills Hub plugin code only, not any skill.
+- **Skills are downloaded from upstream at install time.** This repository does not host or resell skill content. The curated list shipped with the plugin contains only index information (name, summary, category, download counts) for display, with links back to the original pages.
+- **ClawHub, SkillHub and their marks belong to their respective owners.** Skills Hub is an independent community project, not affiliated with or endorsed by ClawHub, SkillHub or DeepSeek.
+- Authors or platform operators who want displayed information changed or removed can [open an issue](https://github.com/NanmiCoder/dsh-skills-hub/issues), and we'll handle it promptly.
+
 [Report an issue](https://github.com/NanmiCoder/dsh-skills-hub/issues) · [Advanced configuration](./docs/CONFIGURATION.md) · [Contribute](./CONTRIBUTING.md) · [MIT license](./LICENSE)
