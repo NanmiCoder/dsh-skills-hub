@@ -45,9 +45,6 @@ import {
 /** One remote page (the reference store's `PAGE_SIZE`). */
 const PAGE_SIZE = 24
 
-/** Search debounce, mirroring the reference store: typing must not fire per keystroke. */
-const SEARCH_DEBOUNCE_MS = 300
-
 /** localStorage key of the dismissed disclaimer (frozen by docs/CONTRACT.md §5.3). */
 const DISCLAIMER_STORAGE_KEY = 'dsh-skills-hub.disclaimer'
 
@@ -254,7 +251,6 @@ function createInternalController(): MarketControllerInternal {
   let inFlightList: { key: string; sequence: number; promise: Promise<void> } | null = null
   let inFlightCursor: string | null = null
   let inFlightFileKey: string | null = null
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
   function commit(patch: Partial<MarketState>): void {
     state = { ...state, ...patch }
@@ -271,12 +267,6 @@ function createInternalController(): MarketControllerInternal {
     return () => {
       listeners.delete(listener)
     }
-  }
-
-  function cancelDebounce(): void {
-    if (debounceTimer === null) return
-    clearTimeout(debounceTimer)
-    debounceTimer = null
   }
 
   /** Identity of a list request: any filter change makes a different request. */
@@ -332,7 +322,6 @@ function createInternalController(): MarketControllerInternal {
    * issues a fresh request.
    */
   async function refresh(options: { force?: boolean } = {}): Promise<void> {
-    cancelDebounce()
     // A refresh also follows external local management changes.
     detailCache.clear()
     const key = currentListKey()
@@ -429,23 +418,16 @@ function createInternalController(): MarketControllerInternal {
   }
 
   /**
-   * Typing rebuilds the catalogue after a pause, but the input stays controlled:
-   * `filters.q` updates immediately so the field never lags the keyboard.
+   * Applies a submitted query. The search field keeps its own draft and only
+   * calls this on Enter (or clear), so typing never reloads the catalogue.
    */
-  function setQuery(q: string): void {
-    commit({ filters: { ...state.filters, q } })
-    cancelDebounce()
-    debounceTimer = setTimeout(() => {
-      debounceTimer = null
-      void refresh()
-    }, SEARCH_DEBOUNCE_MS)
-  }
-
   function applyInstantFilter(patch: Partial<MarketFilters>): void {
     commit({ filters: { ...state.filters, ...patch } })
-    // The queued search debounce would ask for the same filters a moment later.
-    cancelDebounce()
     void refresh()
+  }
+
+  function setQuery(q: string): void {
+    applyInstantFilter({ q })
   }
 
   function isCurrentDetail(id: string): boolean {

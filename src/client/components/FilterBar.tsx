@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarketFilters } from '../state.ts'
 import { useT } from '../locale-context.tsx'
@@ -18,6 +19,10 @@ const INSTALLED_OPTIONS: readonly MarketFilters['installed'][] = ['all', 'instal
  * platform keyboard behaviour, a real label association, and renders inside a
  * 720px panel without a portal.
  *
+ * The search field is a draft: typing only edits local state, and the query is
+ * submitted on Enter (or when the field is emptied/cleared). Enter during IME
+ * composition confirms the candidate and must not submit.
+ *
  * The result count is announced through a visually hidden live region instead
  * of being printed twice: the visible count lives in the home header, and a
  * screen reader still hears it change when a filter narrows the list.
@@ -30,6 +35,17 @@ export function FilterBar(props: {
 }): JSX.Element {
   const { filters, total, disabled, onChange } = props
   const t = useT()
+  const [draft, setDraft] = useState(filters.q)
+
+  // Follow external resets of the submitted query.
+  useEffect(() => {
+    setDraft(filters.q)
+  }, [filters.q])
+
+  const submit = (q: string): void => {
+    if (q.trim() === filters.q.trim() && q === filters.q) return
+    onChange({ q })
+  }
 
   return (
     <div className={styles.bar}>
@@ -37,20 +53,34 @@ export function FilterBar(props: {
         <Input
           className={styles.searchInput}
           icon={<SearchIcon size={16} />}
-          value={filters.q}
+          value={draft}
           disabled={disabled}
           placeholder={t('searchPlaceholder')}
           aria-label={t('searchPlaceholder')}
-          onChange={(event) => onChange({ q: event.currentTarget.value })}
+          enterKeyHint="search"
+          onChange={(event) => {
+            const next = event.currentTarget.value
+            setDraft(next)
+            // Emptying the field restores the full catalogue without another Enter.
+            if (next === '' && filters.q !== '') submit('')
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+            event.preventDefault()
+            submit(draft)
+          }}
         />
-        {filters.q !== '' && (
+        {draft !== '' && (
           <Button
             variant="ghost"
             size="sm"
             className={styles.clear}
             disabled={disabled}
             aria-label={t('clearSearch')}
-            onClick={() => onChange({ q: '' })}
+            onClick={() => {
+              setDraft('')
+              submit('')
+            }}
             icon={<CloseIcon size={14} />}
           />
         )}

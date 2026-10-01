@@ -8,6 +8,10 @@ import type { MarketFilters } from '../state.ts';
  * platform keyboard behaviour, a real label association, and renders inside a
  * 720px panel without a portal.
  *
+ * The search field is a draft: typing only edits local state, and the query is
+ * submitted on Enter (or when the field is emptied/cleared). Enter during IME
+ * composition confirms the candidate and must not submit.
+ *
  * The result count is announced through a visually hidden live region instead
  * of being printed twice: the visible count lives in the home header, and a
  * screen reader still hears it change when a filter narrows the list.
