@@ -1,15 +1,46 @@
-/* Market catalogue page. The grid is the only element allowed to size the
-   layout: `auto-fill` + `minmax(300px, 1fr)` means a 720px dock gets two
-   columns, a wide window gets more, and neither case scrolls sideways. */
+/* Market catalogue page, in the detail page's language: a white top band
+   (title, categories, search) over a grey canvas of white cards. The grid is
+   the only element allowed to size the layout: `auto-fill` + `minmax(300px,
+   1fr)` means a 720px dock gets two columns, a wide window more, and neither
+   scrolls sideways. */
 
 .home {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 12px;
   min-width: 0;
-  padding: 18px 20px 28px;
+  min-height: 100%;
   box-sizing: border-box;
-  color: var(--dsw-alias-label-primary, #0f1115);
+  color: var(--dsw-alias-label-primary, #12141a);
+  background: var(--dsw-alias-bg-layer-2, #f5f6f8);
+}
+
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px 28px 20px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border-bottom: 1px solid var(--dsw-alias-border-l2, #e4e6eb);
+}
+
+.canvas {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px 28px 36px;
+}
+
+@container (max-width: 560px) {
+  .top {
+    padding: 16px 16px 16px;
+  }
+
+  .canvas {
+    padding: 14px 16px 28px;
+  }
 }
 
 .masthead {
@@ -25,12 +56,11 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
-  border-radius: var(--dsw-radius-md, 12px);
-  background: var(--dsw-alias-bg-layer-1, #ffffff);
-  color: var(--dsw-alias-label-primary, #0f1115);
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--dsw-alias-label-primary, #12141a);
+  color: var(--dsw-alias-bg-layer-1, #ffffff);
 }
 
 .mastheadText {
@@ -40,18 +70,18 @@
 
 .title {
   margin: 0;
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 700;
-  line-height: 30px;
+  line-height: 34px;
   letter-spacing: -0.012em;
   overflow-wrap: anywhere;
 }
 
 .subtitle {
-  margin: 3px 0 0;
+  margin: 4px 0 0;
   max-width: 62ch;
-  color: var(--dsw-alias-label-secondary, #61666b);
-  font-size: 13.5px;
+  color: var(--dsw-alias-label-secondary, #4a4f5c);
+  font-size: 14px;
   line-height: 21px;
   overflow-wrap: anywhere;
 }
@@ -63,15 +93,26 @@
   justify-content: space-between;
   gap: 8px 12px;
   min-width: 0;
-  padding-top: 2px;
+  min-height: 32px;
 }
 
 .count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
   margin: 0;
-  color: var(--dsw-alias-label-secondary, #61666b);
-  font-size: 13px;
+  color: var(--dsw-alias-label-primary, #12141a);
+  font-size: 14px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   line-height: 20px;
+}
+
+.countNote {
+  color: var(--dsw-alias-label-tertiary, #6b7080);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .body {
@@ -84,7 +125,7 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -110,9 +151,10 @@
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  padding: 44px 20px;
-  border: 1px dashed var(--dsw-alias-border-l3, #00000029);
-  border-radius: var(--dsw-radius-md, 12px);
+  padding: 48px 20px;
+  border: 1px solid var(--dsw-alias-border-l2, #e4e6eb);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
   color: var(--dsw-alias-label-tertiary, #81858c);
 }
 
@@ -172,10 +214,11 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-height: 158px;
-  padding: 18px;
-  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
-  border-radius: var(--dsw-radius-md, 12px);
+  min-height: 190px;
+  padding: 20px;
+  border: 1px solid var(--dsw-alias-border-l2, #e4e6eb);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
 }
 .skeletonHeader { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
 .skeletonAvatar, .skeletonTitle, .skeletonLine, .skeletonShort {
@@ -194,3 +237,34 @@
   .skeletonAvatar, .skeletonTitle, .skeletonLine, .skeletonShort { animation: none; }
 }
 @media (max-width: 380px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Search scope line: the catalogue is searched first, the live market on request. */
+.scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: -6px 0 0;
+  color: var(--dsw-alias-label-tertiary, #81858c);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.scopeSwitch {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--dsw-alias-state-business-primary, #4176e6);
+  font: inherit;
+  cursor: pointer;
+}
+
+.scopeSwitch:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.scopeSwitch:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4176e6);
+  outline-offset: 2px;
+}

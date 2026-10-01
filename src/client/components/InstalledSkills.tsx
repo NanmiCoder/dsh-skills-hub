@@ -17,7 +17,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { fetchInstalled, isAbortError, removeInstalled, type InstalledSkillRecord } from '../api.ts'
 import { useT } from '../locale-context.tsx'
+import { FolderIcon, RefreshIcon, SearchIcon, TrashIcon } from '../icons.tsx'
 import { InstalledSkillDetail } from './InstalledSkillDetail.tsx'
+import { SkillAvatar } from './SkillAvatar.tsx'
+import { Chip } from './SkillDetailShell.tsx'
 import styles from './InstalledSkills.module.css'
 
 /** Reader-facing text for anything thrown by the client. */
@@ -29,7 +32,7 @@ export function InstalledSkills(props: {
   /** A removal changed the local inventory; the market half refreshes too. */
   onChanged: () => void
   /** Open the market page of a skill that came from a market. */
-  onOpenMarket: (id: string) => void
+  onOpenMarket: (id: string, owner?: string) => void
 }): JSX.Element {
   const t = useT()
   const [items, setItems] = useState<InstalledSkillRecord[]>([])
@@ -110,89 +113,112 @@ export function InstalledSkills(props: {
         />
       ) : (
         <section className={styles.root}>
-          <header className={styles.header}>
-            <div>
-              <h1>{t('installedTitle')}</h1>
-              <p>{t('installedScope')}</p>
-            </div>
-            <Button variant="outline" size="sm" disabled={loading} onClick={() => setRevision((value) => value + 1)}>
-              {t('refreshInstalled')}
-            </Button>
-          </header>
+          <div className={styles.top}>
+            <header className={styles.header}>
+              <div>
+                <h1 className={styles.title}>{t('installedTitle')}</h1>
+                <p className={styles.subtitle}>{t('installedScope')}</p>
+              </div>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={loading}
+                onClick={() => setRevision((value) => value + 1)}
+              >
+                <RefreshIcon size={14} />
+                {t('refreshInstalled')}
+              </button>
+            </header>
 
-          <input
-            className={styles.search}
-            type="search"
-            aria-label={t('installedSearch')}
-            placeholder={t('installedSearch')}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+            <label className={styles.searchField}>
+              <SearchIcon size={16} />
+              <input
+                className={styles.search}
+                type="search"
+                aria-label={t('installedSearch')}
+                placeholder={t('installedSearch')}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+          </div>
 
-          {error !== null && (
-            <p role="alert" className={styles.error}>
-              {error}
-            </p>
-          )}
+          <div className={styles.canvas}>
+            {error !== null && (
+              <p role="alert" className={styles.error}>
+                {error}
+              </p>
+            )}
 
-          {loading ? (
-            <div role="status" aria-label={t('loading')} className={styles.list}>
-              {Array.from({ length: 5 }, (_, index) => (
-                <div key={index} className={styles.skeleton} />
-              ))}
-            </div>
-          ) : (
-            <>
-              <p className={styles.count}>{t('count', { count: visible.length })}</p>
-              {visible.length === 0 ? (
-                <p className={styles.empty}>{t(items.length === 0 ? 'installedEmpty' : 'emptySearch')}</p>
-              ) : (
-                <div className={styles.list}>
-                  {visible.map((item) => (
-                    <article key={item.key} className={styles.card}>
-                      <div className={styles.info}>
-                        <button
-                          className={styles.name}
-                          ref={(node) => {
-                            if (node === null) rowButtons.current.delete(item.key)
-                            else rowButtons.current.set(item.key, node)
-                          }}
-                          onClick={() => setSelectedKey(item.key)}
-                        >
-                          {item.name}
-                        </button>
-                        <span className={styles.badge}>
-                          {item.source === 'local' ? t('localSkill') : t(`source.${item.source}`)}
-                        </span>
-                        {item.linked && <span className={styles.badge}>{t('linkedSkill')}</span>}
-                        {item.version !== undefined && item.version !== '' && (
-                          <span className={styles.version}>v{item.version}</span>
-                        )}
-                        {item.summary !== undefined && item.summary !== '' && (
-                          <p className={styles.summary}>{item.summary}</p>
-                        )}
-                        <p className={styles.path}>{item.dirPath}</p>
-                      </div>
-                      <div className={styles.actions}>
-                        <Button variant="outline" size="sm" onClick={() => setSelectedKey(item.key)}>
-                          {t('viewInstalled')}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!item.removable}
-                          title={item.removable ? undefined : t('uninstallDisabled')}
-                          onClick={() => setPending(item)}
-                        >
-                          {t('uninstall')}
-                        </Button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+            {loading ? (
+              <div role="status" aria-label={t('loading')} className={styles.list}>
+                {Array.from({ length: 5 }, (_, index) => (
+                  <div key={index} className={styles.skeleton} />
+                ))}
+              </div>
+            ) : (
+              <>
+                <p className={styles.count}>{t('count', { count: visible.length })}</p>
+                {visible.length === 0 ? (
+                  <p className={styles.empty}>{t(items.length === 0 ? 'installedEmpty' : 'emptySearch')}</p>
+                ) : (
+                  <div className={styles.list}>
+                    {visible.map((item) => (
+                      <article key={item.key} className={styles.card}>
+                        <SkillAvatar name={item.name} source={item.source} size={44} />
+                        <div className={styles.info}>
+                          <div className={styles.nameRow}>
+                            <button
+                              type="button"
+                              className={styles.name}
+                              ref={(node) => {
+                                if (node === null) rowButtons.current.delete(item.key)
+                                else rowButtons.current.set(item.key, node)
+                              }}
+                              onClick={() => setSelectedKey(item.key)}
+                            >
+                              {item.name}
+                            </button>
+                            {item.version !== undefined && item.version !== '' && (
+                              <span className={styles.version}>v{item.version}</span>
+                            )}
+                          </div>
+                          <div className={styles.chips}>
+                            <Chip tone={item.managed ? 'blue' : 'plain'}>
+                              {item.source === 'local' ? t('localSkill') : t(`source.${item.source}`)}
+                            </Chip>
+                            {item.linked && <Chip>{t('linkedSkill')}</Chip>}
+                          </div>
+                          {item.summary !== undefined && item.summary !== '' && (
+                            <p className={styles.summary}>{item.summary}</p>
+                          )}
+                          <p className={styles.path}>
+                            <FolderIcon size={13} />
+                            <span>{item.dirPath}</span>
+                          </p>
+                        </div>
+                        <div className={styles.actions}>
+                          <button type="button" className={styles.secondaryButton} onClick={() => setSelectedKey(item.key)}>
+                            {t('viewInstalled')}
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            disabled={!item.removable}
+                            title={item.removable ? undefined : t('uninstallDisabled')}
+                            onClick={() => setPending(item)}
+                          >
+                            <TrashIcon size={14} />
+                            {t('uninstall')}
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </section>
       )}
 
@@ -209,7 +235,7 @@ export function InstalledSkills(props: {
             if (!busy) setPending(null)
           }}
           footer={
-            <div className={styles.actions}>
+            <div className={styles.dialogActions}>
               <Button variant="outline" size="md" disabled={busy} onClick={() => setPending(null)}>
                 {t('cancel')}
               </Button>
@@ -219,7 +245,7 @@ export function InstalledSkills(props: {
             </div>
           }
         >
-          <p className={styles.path}>{pending.dirPath}</p>
+          <p className={styles.dialogPath}>{pending.dirPath}</p>
         </Modal>
       )}
     </>

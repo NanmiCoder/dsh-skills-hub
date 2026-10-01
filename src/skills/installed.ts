@@ -38,6 +38,8 @@ export interface InstalledMetaFile {
   id: string
   source: MarketSource
   slug: string
+  /** Registry author (ClawHub slugs are shared across authors); absent in older sidecars. */
+  owner?: string
   version?: string
   installedAt: string
   files: Array<{ path: string; sha256: string }>
@@ -53,6 +55,8 @@ export interface InstalledSkillRecord {
   id: string
   source: MarketSource | 'local'
   slug: string
+  /** Registry author recorded at install time, when known */
+  owner?: string
   name: string
   dirName: string
   /**
@@ -101,6 +105,9 @@ export function parseInstalledMeta(value: unknown): InstalledMetaFile | null {
   const version = typeof candidate['version'] === 'string' && candidate['version'] !== ''
     ? candidate['version']
     : undefined
+  const owner = typeof candidate['owner'] === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(candidate['owner'])
+    ? candidate['owner']
+    : undefined
   const files: Array<{ path: string; sha256: string }> = []
   const rawFiles = candidate['files']
   if (Array.isArray(rawFiles)) {
@@ -118,6 +125,7 @@ export function parseInstalledMeta(value: unknown): InstalledMetaFile | null {
     id,
     source: source as MarketSource,
     slug,
+    ...(owner === undefined ? {} : { owner }),
     ...(version === undefined ? {} : { version }),
     installedAt,
     files,
@@ -323,6 +331,7 @@ async function readDirectorySkill(rootPath: string, dirName: string): Promise<In
     id: meta.id,
     source: meta.source,
     slug: meta.slug,
+    ...(meta.owner === undefined ? {} : { owner: meta.owner }),
     ...(version === undefined ? {} : { version }),
     installedAt: meta.installedAt,
     ...shared,

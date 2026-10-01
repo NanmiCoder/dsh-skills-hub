@@ -13,7 +13,15 @@
 
 import { getSourceHealth, markSourceHealth, marketCache, noteMarketStat, type MarketCache } from './cache.ts'
 import { getProviderBase, withProviderConfiguration } from './provider-fetch.ts'
-import { clawhubProvider } from './clawhub-provider.ts'
+import { clawhubOwnerFor, clawhubProvider, setClawhubOwnerHints, withClawhubOwner } from './clawhub-provider.ts'
+import {
+  catalogCategories,
+  catalogClawhubOwners,
+  catalogEntryFor,
+  catalogEntryToSkill,
+  filterCatalog,
+  getCatalog,
+} from '../catalog/catalog.ts'
 import { skillhubProvider } from './skillhub-provider.ts'
 import {
   MARKET_LIMITS,
@@ -21,6 +29,7 @@ import {
   detectMarketLanguage,
   sanitizeDirName,
   skillId,
+  type MarketCategoriesResult,
   type MarketFileContent,
   type MarketListResult,
   type MarketProvider,
@@ -36,6 +45,10 @@ const providers: Record<MarketSource, MarketProvider> = {
   clawhub: clawhubProvider,
   skillhub: skillhubProvider,
 }
+
+// Catalogue entries name an exact ClawHub owner; detail, files and install must
+// resolve the same skill the card showed.
+setClawhubOwnerHints(catalogClawhubOwners())
 
 // ─── Installed-skill seam ────────────────────────────────────────────────────
 
@@ -167,7 +180,9 @@ export function dedupeSkills(items: NormalizedSkill[]): NormalizedSkill[] {
   for (const item of copies) {
     if (item.source === 'skillhub' && item.upstream?.slug) {
       const original = byClawhubSlug.get(item.upstream.slug)
-      if (original) {
+      // Same slug, different author: the mirror copies another skill.
+      const sameAuthor = !item.upstream.owner || !original?.author.handle || item.upstream.owner === original.author.handle
+      if (original && sameAuthor) {
         original.mirrors = [...(original.mirrors ?? []), item.id]
         // Enrich the original with SkillHub-only data.
         if (!original.iconUrl && item.iconUrl) original.iconUrl = item.iconUrl
@@ -187,6 +202,13 @@ export function dedupeSkills(items: NormalizedSkill[]): NormalizedSkill[] {
 
 export interface ListMarketSkillsParams {
   q?: string
+  /**
+   * `catalog` (default): the curated snapshot shipped with the plugin.
+   * `market`: live upstream list/search across both registries.
+   */
+  scope?: 'catalog' | 'market'
+  /** Catalogue category key; ignored by the live market scope. */
+  category?: string
   source: 'all' | MarketSource
   security: 'all' | SecurityStatus
   installed: 'all' | 'installed' | 'installable'
@@ -272,6 +294,7 @@ async function fetchProviderPage(
 }
 
 export function listMarketSkills(params: ListMarketSkillsParams): Promise<MarketListResult> {
+  if (params.scope !== 'market') return Promise.resolve(listCatalogSkills(params))
   const cache = marketCache
   return withProviderConfiguration(() => listMarketSkillsWithCache(params, cache))
 }
@@ -336,15 +359,80 @@ async function listMarketSkillsWithCache(params: ListMarketSkillsParams, cache: 
   return { items: merged, nextCursor: encodeCursor(nextCursor), sources }
 }
 
+// ─── Curated catalogue ───────────────────────────────────────────────────────
+
+const CATALOG_CURSOR_PREFIX = 'catalog:'
+
+/** Provenance of every catalogue answer: one snapshot, read when it was generated. */
+function catalogStatus(): SourceStatusInfo {
+  return { status: 'ok', fetchedAt: getCatalog().generatedAt, fromCache: true }
+}
+
+/**
+ * One page of the curated catalogue.
+ *
+ * Everything is local, so every filter — security and installed included — runs
+ * before pagination: a page is always full until the list is exhausted, which
+ * is what keeps infinite scroll from stalling on a filtered-out page.
+ */
+export function listCatalogSkills(params: ListMarketSkillsParams): MarketListResult {
+  let items = filterCatalog({ q: params.q, category: params.category, source: params.source })
+    .map(catalogEntryToSkill)
+    .map((item) => annotateInstallState(item))
+  if (params.security !== 'all') items = items.filter((item) => item.securityStatus === params.security)
+  if (params.installed !== 'all') {
+    items = items.filter((item) =>
+      params.installed === 'installed' ? item.installState === 'installed' : item.installState !== 'installed',
+    )
+  }
+  const raw = params.cursor?.startsWith(CATALOG_CURSOR_PREFIX) ? params.cursor.slice(CATALOG_CURSOR_PREFIX.length) : ''
+  const offset = Math.max(0, Number.parseInt(raw, 10) || 0)
+  const end = offset + params.limit
+  const status = catalogStatus()
+  return {
+    items: items.slice(offset, end),
+    nextCursor: end < items.length ? `${CATALOG_CURSOR_PREFIX}${end}` : null,
+    total: items.length,
+    sources: { clawhub: status, skillhub: status },
+  }
+}
+
+export function listMarketCategories(): MarketCategoriesResult {
+  return { items: catalogCategories(), status: catalogStatus() }
+}
+
 // ─── Detail / file content ───────────────────────────────────────────────────
 
 export function getMarketSkillDetail(
   source: MarketSource,
   slug: string,
-  options: { force?: boolean; allowStale?: boolean } = {},
+  options: { force?: boolean; allowStale?: boolean; owner?: string } = {},
 ): Promise<{ skill: NormalizedSkillDetail; sourceStatus: SourceStatusInfo }> {
   const cache = marketCache
-  return withProviderConfiguration(() => getMarketSkillDetailWithCache(source, slug, options, cache))
+  return withProviderConfiguration(() =>
+    withMarketOwner(source, slug, options.owner, () => getMarketSkillDetailWithCache(source, slug, options, cache)),
+  ).then(
+    (result) => ({ ...result, skill: withCatalogMetadata(result.skill) }),
+  )
+}
+
+/**
+ * Overlay the catalogue's editorial fields on a live detail.
+ *
+ * Upstream stays authoritative for everything it owns (version, files,
+ * security, stats); the catalogue only adds what upstream does not have — our
+ * category, the editor's pick and the reader-facing Chinese summary.
+ */
+function withCatalogMetadata(detail: NormalizedSkillDetail): NormalizedSkillDetail {
+  const entry = catalogEntryFor(detail.source, detail.slug)
+  if (!entry) return detail
+  return {
+    ...detail,
+    category: entry.category,
+    featured: entry.featured === true ? true : undefined,
+    summary: entry.summary || detail.summary,
+    tags: detail.tags.length > 0 ? detail.tags : [...entry.tags],
+  }
 }
 
 async function getMarketSkillDetailWithCache(
@@ -353,7 +441,7 @@ async function getMarketSkillDetailWithCache(
   options: { force?: boolean; allowStale?: boolean },
   cache: MarketCache,
 ): Promise<{ skill: NormalizedSkillDetail; sourceStatus: SourceStatusInfo }> {
-  const cacheKey = `detail:${source}:${JSON.stringify([getProviderBase(source), slug])}`
+  const cacheKey = `detail:${source}:${JSON.stringify([getProviderBase(source), slug, ...ownerKeyPart(source, slug)])}`
   const forced = options.force === true
   if (forced) noteMarketStat('forcedRefreshes')
   const hit = forced ? undefined : await cache.getRecord<NormalizedSkillDetail>(cacheKey)
@@ -402,9 +490,35 @@ export function getMarketFileContent(
   source: MarketSource,
   slug: string,
   filePath: string,
+  owner?: string,
 ): Promise<MarketFileContent> {
   const cache = marketCache
-  return withProviderConfiguration(() => getMarketFileContentWithCache(source, slug, filePath, cache))
+  return withProviderConfiguration(() =>
+    withMarketOwner(source, slug, owner, () => getMarketFileContentWithCache(source, slug, filePath, cache)),
+  )
+}
+
+/**
+ * Pin a ClawHub read to the owner the reader asked for. ClawHub slugs are
+ * shared across authors, so `clawhub:<slug>` alone does not name one skill.
+ */
+export function withMarketOwner<T>(
+  source: MarketSource,
+  slug: string,
+  owner: string | undefined,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return source === 'clawhub' ? withClawhubOwner(slug, owner, operation) : operation()
+}
+
+/**
+ * Cache keys of owner-dependent reads carry the owner the read will use, so a
+ * snapshot of one author's skill is never served for another's. Appended only
+ * when known, keeping unambiguous slugs' keys unchanged.
+ */
+function ownerKeyPart(source: MarketSource, slug: string): string[] {
+  const owner = source === 'clawhub' ? clawhubOwnerFor(slug) : undefined
+  return owner ? [`owner=${owner}`] : []
 }
 
 async function getMarketFileContentWithCache(
@@ -415,7 +529,7 @@ async function getMarketFileContentWithCache(
 ): Promise<MarketFileContent> {
   // JSON-encoded for the same reason as the list keys: slug and filePath are
   // both caller-controlled, so a `:`-joined key is ambiguous.
-  const cacheKey = `file:${source}:${JSON.stringify([getProviderBase(source), slug, filePath])}`
+  const cacheKey = `file:${source}:${JSON.stringify([getProviderBase(source), slug, filePath, ...ownerKeyPart(source, slug)])}`
   const cached = await cache.getRecord<MarketFileContent>(cacheKey)
   if (cached) {
     noteMarketStat('hits')
@@ -458,7 +572,11 @@ export function getMarketStatus(): Record<MarketSource, SourceStatusInfo> {
  * right now — the file bytes are fetched fresh and hash-verified against the
  * list, so the list must come from the same generation as those bytes.
  */
-export async function resolveMarketSkill(source: MarketSource, slug: string): Promise<NormalizedSkillDetail> {
-  const { skill } = await getMarketSkillDetail(source, slug, { force: true, allowStale: false })
+export async function resolveMarketSkill(
+  source: MarketSource,
+  slug: string,
+  owner?: string,
+): Promise<NormalizedSkillDetail> {
+  const { skill } = await getMarketSkillDetail(source, slug, { force: true, allowStale: false, owner })
   return skill
 }

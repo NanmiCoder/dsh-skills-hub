@@ -129,7 +129,7 @@ test('three catalogue pages, searches, details and previews survive an actual ho
   const pages = []
   let cursor
   for (let page = 0; page < 3; page++) {
-    const path = `/skills?limit=3${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`
+    const path = `/skills?scope=market&limit=3${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`
     const result = await first.get(path)
     paths.push(path)
     pages.push(result)
@@ -138,7 +138,7 @@ test('three catalogue pages, searches, details and previews survive an actual ho
     cursor = result.nextCursor
   }
   assert.equal(cursor, null)
-  const searchPath = '/skills?q=git&limit=3'
+  const searchPath = '/skills?scope=market&q=git&limit=3'
   const search = await first.get(searchPath)
   const details = ['/skills/clawhub/git', '/skills/skillhub/pe-compliance-expert-pro']
   const originals = await Promise.all(details.map((path) => first.get(path)))
@@ -239,7 +239,7 @@ test('in-flight disk reads retain their provider configuration and cache instanc
     configureMarketCache({ directory: join(home, directory) })
   }
   const read = () => Promise.all([
-    listMarketSkills({ source: 'clawhub', limit: 3, security: 'all', installed: 'all' }),
+    listMarketSkills({ scope: 'market', source: 'clawhub', limit: 3, security: 'all', installed: 'all' }),
     getMarketSkillDetail('clawhub', 'git'),
     getMarketFileContent('clawhub', 'git', 'SKILL.md'),
   ])

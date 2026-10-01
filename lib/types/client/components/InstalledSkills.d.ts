@@ -16,5 +16,5 @@ export declare function InstalledSkills(props: {
     /** A removal changed the local inventory; the market half refreshes too. */
     onChanged: () => void;
     /** Open the market page of a skill that came from a market. */
-    onOpenMarket: (id: string) => void;
+    onOpenMarket: (id: string, owner?: string) => void;
 }): JSX.Element;

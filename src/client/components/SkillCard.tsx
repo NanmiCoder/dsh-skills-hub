@@ -1,10 +1,8 @@
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { NormalizedSkill } from '../../market/types.ts'
 import { useT } from '../locale-context.tsx'
-import { DownloadIcon, StarIcon, TagIcon } from '../icons.tsx'
-import { InstallStateBadge } from './InstallStateBadge.tsx'
-import { SecurityBadge } from './SecurityBadge.tsx'
+import { CheckIcon, DownloadIcon, StarIcon } from '../icons.tsx'
 import { SkillAvatar } from './SkillAvatar.tsx'
+import { Chip, SecurityChip } from './SkillDetailShell.tsx'
 import styles from './SkillCard.module.css'
 
 /** Tags beyond this count collapse into a `+n` chip. */
@@ -53,45 +51,31 @@ export function SkillCard(props: {
       />
 
       <div className={styles.head}>
-        <SkillAvatar name={skill.name} source={skill.source} iconUrl={skill.iconUrl} size={46} />
+        <SkillAvatar name={skill.name} source={skill.source} iconUrl={skill.iconUrl} size={44} />
         <div className={styles.headText}>
           <div className={styles.titleRow}>
             <h3 className={styles.title}>{skill.name}</h3>
             {skill.version !== undefined && skill.version !== '' && <span className={styles.version}>v{skill.version}</span>}
           </div>
           <p className={styles.origin}>
-            <span className={styles.source}>{t(`source.${skill.source}`)}</span>
-            {author !== '' && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className={styles.author}>{author}</span>
-              </>
-            )}
+            <span>{t(`source.${skill.source}`)}</span>
+            {author !== '' && <span className={styles.author}>{author}</span>}
           </p>
         </div>
       </div>
 
       <p className={styles.summary}>{skill.summary}</p>
 
-      {skill.tags.length > 0 && (
-        <p className={styles.tags}>
-          <TagIcon size={13} className={styles.tagIcon} />
-          {skill.tags.slice(0, MAX_VISIBLE_TAGS).map((tag) => (
-            <span key={tag} className={styles.tag}>
-              #{tag}
-            </span>
-          ))}
-          {extraTags > 0 && <span className={styles.tag}>+{extraTags}</span>}
-        </p>
-      )}
+      <div className={styles.tags}>
+        <SecurityChip status={skill.securityStatus} short />
+        {skill.featured === true && <Chip tone="blue">{t('featured')}</Chip>}
+        {skill.tags.slice(0, MAX_VISIBLE_TAGS).map((tag) => (
+          <Chip key={tag}>{tag}</Chip>
+        ))}
+        {extraTags > 0 && <Chip>+{extraTags}</Chip>}
+      </div>
 
       <footer className={styles.footer}>
-        <div className={styles.badges}>
-          <SecurityBadge status={skill.securityStatus} reports={skill.securityReports} compact />
-          {/* The install button already says "installable"; repeating it here would be noise. */}
-          {!showInstall && <InstallStateBadge state={skill.installState} />}
-        </div>
-
         <div className={styles.stats}>
           <span className={styles.stat} title={t('downloads')}>
             <DownloadIcon size={13} />
@@ -103,20 +87,27 @@ export function SkillCard(props: {
               {formatCount(skill.stats.stars)}
             </span>
           )}
-          {showInstall && (
-            <Button
-              variant="primary"
-              size="sm"
-              className={styles.install}
-              disabled={installing}
-              aria-label={`${t('install')}: ${skill.name}`}
-              onClick={() => onInstall?.(skill.id)}
-              icon={<DownloadIcon size={14} />}
-            >
-              {installing ? t('installing') : t('install')}
-            </Button>
-          )}
         </div>
+
+        {showInstall && (
+          <button
+            type="button"
+            className={styles.install}
+            disabled={installing}
+            aria-label={`${t('install')}: ${skill.name}`}
+            onClick={() => onInstall?.(skill.id)}
+          >
+            <DownloadIcon size={14} />
+            {installing ? t('installing') : t('install')}
+          </button>
+        )}
+        {skill.installState === 'installed' && (
+          <span className={styles.installed}>
+            <CheckIcon size={14} />
+            {t('installed')}
+          </span>
+        )}
+        {skill.installState === 'not-installable' && <span className={styles.unavailable}>{t('notInstallable')}</span>}
       </footer>
     </article>
   )

@@ -12,6 +12,7 @@
     "outDir": "lib",
     "rootDir": "src",
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "allowImportingTsExtensions": true,

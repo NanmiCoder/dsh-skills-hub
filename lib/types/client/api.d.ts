@@ -9,7 +9,7 @@
  * never a value from the Host's `src/market/*`, which would drag Node code into
  * the browser bundle (contract §2).
  */
-import type { MarketFileContent, MarketListResult, MarketSource, NormalizedSkill, NormalizedSkillDetail, SecurityStatus, SourceStatusInfo } from '../market/types.ts';
+import type { MarketCategoriesResult, MarketFileContent, MarketListResult, MarketSource, NormalizedSkill, NormalizedSkillDetail, SecurityStatus, SourceStatusInfo } from '../market/types.ts';
 /**
  * Structural mirror of the Host's `InstalledSkillRecord`
  * (`src/skills/installed.ts`, contract §5.2).
@@ -29,6 +29,8 @@ export interface InstalledSkillRecord {
     id: string;
     source: MarketSource | 'local';
     slug: string;
+    /** Registry author recorded at install time, when known. */
+    owner?: string;
     name: string;
     dirName: string;
     dirPath: string;
@@ -43,6 +45,10 @@ export interface InstalledSkillRecord {
 /** List query accepted by `GET /api/skills-hub/skills`. */
 export interface MarketQuery {
     q?: string;
+    /** `catalog` (default): the curated list. `market`: live upstream search. */
+    scope?: 'catalog' | 'market';
+    /** Catalogue category key; `'all'` (or absent) means no category filter. */
+    category?: string;
     source: 'all' | MarketSource;
     security: 'all' | SecurityStatus;
     installed: 'all' | 'installed' | 'installable';
@@ -71,15 +77,18 @@ export declare function isAbortError(error: unknown): boolean;
 export declare function fetchMarketList(query: MarketQuery, signal?: AbortSignal, options?: {
     refresh?: boolean;
 }): Promise<MarketListResult>;
+/** The category bar's entries (curated catalogue), with the snapshot's provenance. */
+export declare function fetchMarketCategories(signal?: AbortSignal): Promise<MarketCategoriesResult>;
 /** One skill's full detail plus the health of the source that served it. */
 export declare function fetchSkillDetail(id: string, signal?: AbortSignal, options?: {
     refresh?: boolean;
+    owner?: string;
 }): Promise<{
     skill: NormalizedSkillDetail;
     sourceStatus: SourceStatusInfo;
 }>;
 /** One file of a skill, for the Files tab. */
-export declare function fetchSkillFile(id: string, path: string, signal?: AbortSignal): Promise<MarketFileContent>;
+export declare function fetchSkillFile(id: string, path: string, signal?: AbortSignal, owner?: string): Promise<MarketFileContent>;
 /** Health of every market source, refreshed independently of the list. */
 export declare function fetchSourceStatus(signal?: AbortSignal): Promise<Record<MarketSource, SourceStatusInfo>>;
 /**
@@ -89,7 +98,7 @@ export declare function fetchSourceStatus(signal?: AbortSignal): Promise<Record<
  */
 export declare function fetchInstalled(signal?: AbortSignal): Promise<InstalledSkillRecord[]>;
 /** Install a market skill into the local skills directory. */
-export declare function installSkill(id: string): Promise<{
+export declare function installSkill(id: string, owner?: string): Promise<{
     installedPath: string;
     skill: NormalizedSkill;
 }>;

@@ -7,7 +7,12 @@
  *  - GET /api/v1/skills/{slug}                        → {skill, latestVersion, owner, metadata, moderation}
  *  - GET /api/v1/skills/{slug}/versions/{v}           → {version:{license, files[], security}}
  *  - GET /api/v1/skills/{slug}/file?path=             → raw file text
+ *
+ * Slugs are not unique: every endpoint accepts `?owner=`, and without it a
+ * shared slug answers 409 AMBIGUOUS_SKILL_SLUG. See `clawhubOwnerFor`.
  */
+
+import { AsyncLocalStorage } from 'node:async_hooks'
 
 import {
   getProviderBase,
@@ -34,6 +39,7 @@ import {
 
 type ClawhubListItem = {
   slug: string
+  ownerHandle?: string
   displayName?: string
   summary?: string
   description?: string
@@ -56,9 +62,18 @@ type ClawhubSearchResult = {
   owner?: { handle?: string; displayName?: string; image?: string }
 }
 
+type ClawhubScanner = {
+  status?: string
+  normalizedStatus?: string
+  recommendation?: string
+  severity?: string
+  summary?: string
+  issueCount?: number
+}
+
 type ClawhubDetail = {
   skill: ClawhubListItem
-  latestVersion?: { version?: string; license?: string }
+  latestVersion?: { version?: string; license?: string; changelog?: string; createdAt?: number }
   owner?: { handle?: string; displayName?: string; image?: string }
   moderation?: unknown
 }
@@ -68,8 +83,15 @@ type ClawhubVersionDetail = {
     version?: string
     license?: string
     files?: Array<{ path: string; size: number; sha256?: string; contentType?: string }>
-    security?: { status?: string; hasWarnings?: boolean; virustotalUrl?: string }
+    security?: ClawhubSecurity
   }
+}
+
+type ClawhubSecurity = {
+  status?: string
+  hasWarnings?: boolean
+  virustotalUrl?: string
+  scanners?: { vt?: ClawhubScanner; skillspector?: ClawhubScanner; llm?: ClawhubScanner }
 }
 
 // ─── Frontmatter ─────────────────────────────────────────────────────────────
@@ -406,15 +428,83 @@ function usableFileEntries(files: unknown): Array<{ path: string; size: number; 
   return out
 }
 
-// ClawHub slugs are not unique across owners. Ambiguous slugs return
-// 409 AMBIGUOUS_SKILL_SLUG with candidate owners; disambiguate via ?owner=
-// (first match = primary listing) and remember the resolution.
+// ClawHub slugs are not unique across owners. Every read is therefore made
+// for one owner, chosen in this order:
+//  1. the owner the reader's request names (the card it came from);
+//  2. the owner the curated catalogue pins for that slug;
+//  3. an owner resolved earlier for the slug (remembered below);
+//  4. otherwise, on 409 AMBIGUOUS_SKILL_SLUG, the most-downloaded candidate.
+// The registry lists candidates oldest-first, and for popular slugs that is
+// routinely a later copy by another author — "first match" opened (and
+// installed) somebody else's skill.
 const ownerCache = new Map<string, string>()
 
+/**
+ * Owners the curated catalogue already knows. A catalogue entry names the exact
+ * skill it recommends, so its owner must win over any guessing.
+ */
+const ownerHints = new Map<string, string>()
+
+/** The owner one detail/file/install operation was asked for. */
+const requestedOwner = new AsyncLocalStorage<{ slug: string; owner: string }>()
+
+/** Shape of a ClawHub owner handle (also the route's validation rule). */
+export const CLAWHUB_OWNER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/
+
+/** Most candidates probed when resolving an ambiguous slug without an owner. */
+const MAX_AMBIGUOUS_PROBES = 8
+
+export function setClawhubOwnerHints(hints: Iterable<readonly [string, string]>): void {
+  ownerHints.clear()
+  for (const [slug, owner] of hints) ownerHints.set(slug, owner)
+}
+
+/**
+ * Run one operation pinned to `owner` for `slug`. Without an owner the
+ * operation runs unpinned and falls back to the hint/cache/probe order.
+ */
+export function withClawhubOwner<T>(slug: string, owner: string | undefined, operation: () => Promise<T>): Promise<T> {
+  if (!owner) return operation()
+  return requestedOwner.run({ slug, owner }, operation)
+}
+
+/** The owner a read of `slug` will use right now, if one is known before asking upstream. */
+export function clawhubOwnerFor(slug: string): string | undefined {
+  const requested = requestedOwner.getStore()
+  if (requested?.slug === slug) return requested.owner
+  return ownerHints.get(slug) ?? ownerCache.get(slug)
+}
+
+/**
+ * Pick the candidate readers most plausibly mean: the most-downloaded one.
+ * Probes are owner-qualified detail reads; a candidate that fails to answer
+ * simply does not compete.
+ */
+async function resolveAmbiguousOwner(slug: string, candidates: string[]): Promise<string | undefined> {
+  const base = getProviderBase('clawhub')
+  const probed = await Promise.all(
+    candidates.slice(0, MAX_AMBIGUOUS_PROBES).map(async (owner) => {
+      const url = new URL(`/api/v1/skills/${encodeURIComponent(slug)}`, base)
+      url.searchParams.set('owner', owner)
+      try {
+        const res = await providerFetch('clawhub', url.toString())
+        if (!res.ok) return { owner, downloads: -1 }
+        const { content } = await readResponseTextWithLimit('clawhub', res, MARKET_LIMITS.maxTotalSize, 'ambiguous-slug probe')
+        const parsed = JSON.parse(content) as { skill?: { stats?: { downloads?: unknown } } }
+        return { owner, downloads: asNumber(parsed.skill?.stats?.downloads) ?? 0 }
+      } catch {
+        return { owner, downloads: -1 }
+      }
+    }),
+  )
+  const best = probed.filter((entry) => entry.downloads >= 0).sort((a, b) => b.downloads - a.downloads)[0]
+  return best?.owner
+}
+
 async function clawhubFetch(url: URL, slug: string): Promise<Response> {
-  const cachedOwner = ownerCache.get(slug)
-  if (cachedOwner && !url.searchParams.has('owner')) {
-    url.searchParams.set('owner', cachedOwner)
+  const knownOwner = clawhubOwnerFor(slug)
+  if (knownOwner && !url.searchParams.has('owner')) {
+    url.searchParams.set('owner', knownOwner)
   }
   const res = await providerFetch('clawhub', url.toString())
   if (res.status !== 409) return res
@@ -440,7 +530,13 @@ async function clawhubFetch(url: URL, slug: string): Promise<Response> {
     if (error instanceof MarketUpstreamError) throw error
     body = null
   }
-  const resolvedOwner = body?.code === 'AMBIGUOUS_SKILL_SLUG' ? asString(body.matches?.[0]?.ownerHandle) : undefined
+  const candidates = body?.code === 'AMBIGUOUS_SKILL_SLUG'
+    ? (body.matches ?? []).map((match) => asString(match?.ownerHandle)).filter((owner): owner is string => owner !== undefined)
+    : []
+  // A pinned owner that still answers 409 is not a guess we may widen.
+  const resolvedOwner = knownOwner === undefined && candidates.length > 0
+    ? await resolveAmbiguousOwner(slug, candidates)
+    : undefined
   if (!resolvedOwner) {
     throw new MarketHttpError(
       'clawhub',
@@ -477,26 +573,65 @@ async function clawhubFetchJson<T>(url: URL, slug: string): Promise<T> {
   }
 }
 
-function mapSecurity(security?: { status?: string; hasWarnings?: boolean; virustotalUrl?: string }): {
+/**
+ * ClawHub's scan of one version: an overall status plus per-scanner verdicts
+ * (VirusTotal, skillspector, an LLM review). The overall status decides the
+ * badge; each scanner becomes its own report so the reader sees which one
+ * objected and why.
+ */
+function mapSecurity(security?: ClawhubSecurity): {
   status: SecurityStatus
   reports: SecurityReport[]
 } {
   const vendorStatus = asString(security?.status)
   if (!vendorStatus) return { status: 'unknown', reports: [] }
   const clean = vendorStatus === 'clean'
-  return {
-    status: clean ? 'benign' : 'flagged',
-    reports: [
-      {
-        vendor: 'clawhub-scan',
-        status: vendorStatus,
-        statusText: clean
-          ? security?.hasWarnings === true ? 'Clean (with warnings)' : 'Clean'
-          : `Scan status: ${vendorStatus}`,
-        reportUrl: asString(security?.virustotalUrl),
-      },
-    ],
+  const reports: SecurityReport[] = [
+    {
+      vendor: 'clawhub-scan',
+      status: vendorStatus,
+      statusText: clean
+        ? security?.hasWarnings === true ? 'Clean (with warnings)' : 'Clean'
+        : `Scan status: ${vendorStatus}`,
+      reportUrl: asString(security?.virustotalUrl),
+    },
+  ]
+  const scanners: Array<[string, ClawhubScanner | undefined]> = [
+    ['VirusTotal', security?.scanners?.vt],
+    ['skillspector', security?.scanners?.skillspector],
+    ['LLM review', security?.scanners?.llm],
+  ]
+  for (const [vendor, scanner] of scanners) {
+    const status = asString(scanner?.normalizedStatus) ?? asString(scanner?.status)
+    if (!status) continue
+    const recommendation = asString(scanner?.recommendation)
+    const summary = asString(scanner?.summary)
+    const reportUrl = vendor === 'VirusTotal' ? asString(security?.virustotalUrl) : undefined
+    reports.push({
+      vendor,
+      status,
+      statusText: recommendation ? `${status} · ${recommendation}` : status,
+      ...(summary ? { summary } : {}),
+      ...(reportUrl ? { reportUrl } : {}),
+    })
   }
+  return { status: clean ? 'benign' : 'flagged', reports }
+}
+
+function changelogOf(
+  version: string | undefined,
+  latest: { changelog?: string; createdAt?: number } | undefined,
+): { changelog?: { version?: string; text: string; publishedAt?: number } } {
+  const text = meaningfulChangelog(latest?.changelog)
+  return text ? { changelog: { version, text, publishedAt: asNumber(latest?.createdAt) } } : {}
+}
+
+/** A release note worth showing: registries stamp placeholders on synced versions. */
+export function meaningfulChangelog(text: unknown): string | undefined {
+  const value = asString(text)?.trim()
+  if (!value) return undefined
+  if (/^synced by .*pipeline$/i.test(value)) return undefined
+  return value
 }
 
 function normalizeListItem(item: ClawhubListItem): NormalizedSkill {
@@ -506,7 +641,7 @@ function normalizeListItem(item: ClawhubListItem): NormalizedSkill {
     slug: item.slug,
     name: asString(item.displayName) || item.slug,
     summary: asString(item.summary) ?? '',
-    author: { handle: '' },
+    author: { handle: asString(item.ownerHandle) || '' },
     stats: {
       downloads: asNumber(item.stats?.downloads) ?? 0,
       installs: asNumber(item.stats?.installs),
@@ -608,7 +743,11 @@ export const clawhubProvider: MarketProvider = {
     }
     const nativeResults = usable.filter((result) => (result.source === undefined || result.source === 'clawhub')
       && (result.install?.kind === undefined || result.install.kind === 'clawhub'))
-    return { items: nativeResults.slice(0, limit).map(normalizeSearchResult) }
+    // A card id is `clawhub:<slug>`, so a page can hold one owner per slug: the
+    // most relevant (first) result keeps the slot and carries its owner.
+    const seen = new Set<string>()
+    const distinct = nativeResults.filter((result) => !seen.has(result.slug) && Boolean(seen.add(result.slug)))
+    return { items: distinct.slice(0, limit).map(normalizeSearchResult) }
   },
 
   async detail(slug): Promise<NormalizedSkillDetail> {
@@ -660,6 +799,7 @@ export const clawhubProvider: MarketProvider = {
     }
 
     const item = normalizeListItem(data.skill)
+    const owner = asString(data.owner?.handle)
     return {
       ...item,
       version,
@@ -670,6 +810,8 @@ export const clawhubProvider: MarketProvider = {
       },
       securityStatus: security.status,
       securityReports: security.reports.length ? security.reports : undefined,
+      ...changelogOf(version, data.latestVersion),
+      ...(owner ? { pageUrl: `https://clawhub.ai/${encodeURIComponent(owner)}/${encodeURIComponent(slug)}` } : {}),
       description: body,
       descriptionFrontmatter: frontmatter,
       license,

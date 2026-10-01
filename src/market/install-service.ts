@@ -24,7 +24,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { clawhubProvider } from './clawhub-provider.ts'
 import { skillhubProvider } from './skillhub-provider.ts'
-import { getMarketSkillDetail, resolveMarketSkill } from './market-service.ts'
+import { getMarketSkillDetail, resolveMarketSkill, withMarketOwner } from './market-service.ts'
 import { withProviderConfiguration } from './provider-fetch.ts'
 import {
   INSTALL_META_FILE,
@@ -137,8 +137,18 @@ function hasErrorCode(error: unknown, code: string): boolean {
 }
 
 /** The upstream detail for a skill, or the market's own "not installable" verdict. */
-async function loadDetail(source: MarketSource, slug: string): Promise<NormalizedSkill> {
-  return resolveMarketSkill(source, slug)
+async function loadDetail(source: MarketSource, slug: string, owner: string | undefined): Promise<NormalizedSkill> {
+  const detail = await resolveMarketSkill(source, slug, owner)
+  // The bytes must belong to the author the reader chose: a registry that
+  // answers for another owner is refused rather than installed.
+  if (owner && detail.author.handle && detail.author.handle !== owner) {
+    throw new MarketInstallError(
+      409,
+      MARKET_ERROR_CODES.notInstallable,
+      `Skill ${slug} resolved to ${detail.author.handle}, not the requested ${owner}`,
+    )
+  }
+  return detail
 }
 
 /**
@@ -203,15 +213,18 @@ async function readJsonIfExists(filePath: string): Promise<unknown> {
 export function installMarketSkill(
   source: MarketSource,
   slug: string,
-  options: { skillsRoot: string; allowUninstall: boolean },
+  options: { skillsRoot: string; allowUninstall: boolean; owner?: string },
 ): Promise<InstallResult> {
-  return withProviderConfiguration(() => installMarketSkillWithConfiguration(source, slug, options))
+  // One owner for the manifest, the file list and every file read.
+  return withProviderConfiguration(() =>
+    withMarketOwner(source, slug, options.owner, () => installMarketSkillWithConfiguration(source, slug, options)),
+  )
 }
 
 async function installMarketSkillWithConfiguration(
   source: MarketSource,
   slug: string,
-  options: { skillsRoot: string; allowUninstall: boolean },
+  options: { skillsRoot: string; allowUninstall: boolean; owner?: string },
 ): Promise<InstallResult> {
   const dirName = sanitizeDirName(slug)
   if (dirName === null) {
@@ -229,7 +242,7 @@ async function installMarketSkillWithConfiguration(
   if (inFlight.has(lockKey)) {
     throw new MarketInstallError(409, MARKET_ERROR_CODES.installInProgress, `Install already in progress: ${id}`)
   }
-  const task = performInstall(source, slug, dirName, id, options.skillsRoot)
+  const task = performInstall(source, slug, dirName, id, options.skillsRoot, options.owner)
   // Store a settled-safe copy: the lock exists to reject *concurrent* work, and
   // an unhandled rejection here would crash the host on every failed install.
   inFlight.set(lockKey, task.catch(() => undefined))
@@ -246,9 +259,10 @@ async function performInstall(
   dirName: string,
   id: string,
   skillsRootInput: string,
+  requestedOwner: string | undefined,
 ): Promise<InstallResult> {
   const skillsRoot = path.resolve(skillsRootInput)
-  const detail = await loadDetail(source, slug)
+  const detail = await loadDetail(source, slug, requestedOwner)
   if (detail.installState === 'installed') {
     throw new MarketInstallError(409, MARKET_ERROR_CODES.alreadyInstalled, `Skill already installed: ${id}`)
   }
@@ -351,10 +365,14 @@ async function performInstall(
     }
 
     const installedAt = new Date().toISOString()
+    // The author is recorded so "view in marketplace" and later reads find this
+    // exact skill again, not another one sharing its slug.
+    const owner = detail.author.handle || requestedOwner
     const meta: InstalledMetaFile = {
       id,
       source,
       slug,
+      ...(owner ? { owner } : {}),
       ...(detail.version === undefined ? {} : { version: detail.version }),
       installedAt,
       files: ledger,
@@ -507,7 +525,7 @@ async function refreshRemovedSkill(
   headline: { name?: string; summary?: string } | undefined,
 ): Promise<NormalizedSkill> {
   try {
-    const { skill } = await getMarketSkillDetail(source, slug)
+    const { skill } = await getMarketSkillDetail(source, slug, { owner: meta.owner })
     return { ...skill, installState: 'installable', notInstallableReason: undefined, installedInfo: undefined }
   } catch {
     return {

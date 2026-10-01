@@ -3,6 +3,8 @@ import { Button, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarketFilters, MarketState, MarketController } from '../state.ts'
 import { useT } from '../locale-context.tsx'
 import { AlertIcon, RefreshIcon, SkillsHubIcon } from '../icons.tsx'
+import { formatStamp } from '../relative-time.ts'
+import { CategoryBar } from './CategoryBar.tsx'
 import { FilterBar } from './FilterBar.tsx'
 import { MarketDisclaimer } from './MarketDisclaimer.tsx'
 import { SkillCard } from './SkillCard.tsx'
@@ -86,38 +88,81 @@ export function MarketHome(props: { state: MarketState; controller: MarketContro
   }
 
   const hasItems = state.items.length > 0
+  const searching = state.filters.q.trim() !== ''
   const isInitialLoad = state.loading && !hasItems
   // "Nothing matched" and "the shops are empty" are different problems, and the
   // dictionary already distinguishes them.
   const narrowed =
-    state.filters.q !== '' || state.filters.source !== 'all' || state.filters.security !== 'all' || state.filters.installed !== 'all'
+    state.filters.q !== '' || state.filters.category !== 'all' || state.filters.source !== 'all' || state.filters.security !== 'all' || state.filters.installed !== 'all'
+
+  const catalogue = state.filters.scope === 'catalog'
+  const catalogueAt = catalogue ? state.sources.clawhub.fetchedAt : undefined
 
   return (
     <div className={styles.home}>
-      <header className={styles.masthead}>
-        <span className={styles.mark} aria-hidden="true">
-          <SkillsHubIcon size={22} />
-        </span>
-        <div className={styles.mastheadText}>
-          <h1 className={styles.title}>{t('title')}</h1>
-          <p className={styles.subtitle}>{t('subtitle')}</p>
-        </div>
-      </header>
+      <div className={styles.top}>
+        <header className={styles.masthead}>
+          <span className={styles.mark} aria-hidden="true">
+            <SkillsHubIcon size={22} />
+          </span>
+          <div className={styles.mastheadText}>
+            <h1 className={styles.title}>{t('title')}</h1>
+            <p className={styles.subtitle}>{t('subtitle')}</p>
+          </div>
+        </header>
 
-      {!state.disclaimerDismissed && <MarketDisclaimer onDismiss={() => controller.dismissDisclaimer()} />}
+        {!state.disclaimerDismissed && <MarketDisclaimer onDismiss={() => controller.dismissDisclaimer()} />}
 
-      <div className={styles.statusRow}>
-        <p className={styles.count} aria-live="polite">
-          {t('count', { count: state.items.length })}
-        </p>
-        <SourceStatusBar
-          sources={state.sources}
-          onRefresh={() => void controller.refresh({ force: true })}
-          refreshing={state.loading}
-        />
+        {catalogue && (
+          <CategoryBar
+            categories={state.categories}
+            active={state.filters.category}
+            disabled={state.loading}
+            onSelect={(category) => controller.setCategory(category)}
+          />
+        )}
+
+        <FilterBar filters={state.filters} total={state.items.length} disabled={state.loading} onChange={applyFilterPatch} />
       </div>
 
-      <FilterBar filters={state.filters} total={state.items.length} disabled={state.loading} onChange={applyFilterPatch} />
+      <div className={styles.canvas}>
+        <div className={styles.statusRow}>
+          <p className={styles.count} aria-live="polite">
+            {/* No count while the first page is in flight: "0 results" would be a claim. */}
+            {isInitialLoad
+              ? t('loading')
+              : catalogue && state.total !== null
+                ? t('catalogSummary', { count: state.total })
+                : t(catalogue ? 'count' : 'liveResults', { count: state.items.length })}
+            {catalogueAt !== undefined && (
+              <span className={styles.countNote} title={formatStamp(catalogueAt)}>
+                {t('catalogUpdated', { date: new Date(catalogueAt).toISOString().slice(0, 10) })}
+              </span>
+            )}
+          </p>
+          {/* Source health only describes live reads; the catalogue is a shipped snapshot. */}
+          {!catalogue && (
+            <SourceStatusBar
+              sources={state.sources}
+              onRefresh={() => void controller.refresh({ force: true })}
+              refreshing={state.loading}
+            />
+          )}
+        </div>
+
+        {searching && (
+          <p className={styles.scope}>
+            {catalogue ? t('scope.catalogHint') : t('scope.marketHint')}
+            <button
+              type="button"
+              className={styles.scopeSwitch}
+              disabled={state.loading}
+              onClick={() => controller.setScope(catalogue ? 'market' : 'catalog')}
+            >
+              {catalogue ? t('scope.searchMarket', { q: state.filters.q.trim() }) : t('scope.backToCatalog')}
+            </button>
+          </p>
+        )}
 
       <div className={styles.body} aria-busy={state.loading}>
         {state.error !== null && (
@@ -188,6 +233,7 @@ export function MarketHome(props: { state: MarketState; controller: MarketContro
                 )}
               </div>
             )}
+      </div>
       </div>
     </div>
   )

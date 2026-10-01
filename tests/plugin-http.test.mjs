@@ -171,6 +171,25 @@ test('host routes serve the marketplace end to end', { skip: built ? false : 'ru
 
     const badId = await post('/api/skills-hub/install', { id: 'nope' })
     assert.equal(badId.status, 400)
+
+    const badCategory = await get('/api/skills-hub/skills?category=..%2Fetc')
+    assert.equal(badCategory.status, 400)
+
+    const badOwner = await get('/api/skills-hub/skills/clawhub/git?owner=..%2Fevil')
+    assert.equal(badOwner.status, 400)
+    const badInstallOwner = await post('/api/skills-hub/install', { id: 'clawhub:git', owner: 'a b' })
+    assert.equal(badInstallOwner.status, 400)
+  })
+
+  await t.test('serves the catalogue categories and a category view', async () => {
+    const categories = await get('/api/skills-hub/categories')
+    assert.equal(categories.status, 200)
+    assert.equal(categories.cache, 'no-store')
+    assert.ok(categories.body.items.length > 0, 'the catalogue ships its categories')
+    const first = categories.body.items[0]
+    const view = await get(`/api/skills-hub/skills?limit=6&category=${encodeURIComponent(first.key)}`)
+    assert.equal(view.status, 200)
+    for (const item of view.body.items) assert.equal(item.category, first.key)
   })
 
   await t.test('reports source health', async () => {
@@ -197,9 +216,9 @@ test('host routes serve the marketplace end to end', { skip: built ? false : 'ru
   })
 
   await t.test('a cache hit keeps the original fetch time', async () => {
-    const first = await get('/api/skills-hub/skills?limit=4&source=clawhub&security=all&installed=all')
+    const first = await get('/api/skills-hub/skills?scope=market&limit=4&source=clawhub&security=all&installed=all')
     if (first.status !== 200 || first.body?.items?.length === 0) return // upstream unavailable
-    const second = await get('/api/skills-hub/skills?limit=4&source=clawhub&security=all&installed=all')
+    const second = await get('/api/skills-hub/skills?scope=market&limit=4&source=clawhub&security=all&installed=all')
     assert.equal(second.status, 200)
     assert.equal(second.body.sources.clawhub.fromCache, true)
     // The snapshot's timestamp is the fetch that produced it — not the moment
@@ -211,8 +230,18 @@ test('host routes serve the marketplace end to end', { skip: built ? false : 'ru
   })
 
   let firstId = null
+  await t.test('the home list is the curated catalogue', async () => {
+    const { status, body } = await get('/api/skills-hub/skills?limit=6')
+    assert.equal(status, 200)
+    assert.equal(body.items.length, 6)
+    assert.equal(body.sources.clawhub.fromCache, true)
+    assert.equal(typeof body.items[0].category, 'string')
+    const bad = await get('/api/skills-hub/skills?scope=everything')
+    assert.equal(bad.status, 400)
+  })
+
   await t.test('lists skills from the live sources', async () => {
-    const { status, body } = await get('/api/skills-hub/skills?limit=6&source=all&security=all&installed=all')
+    const { status, body } = await get('/api/skills-hub/skills?scope=market&limit=6&source=all&security=all&installed=all')
     assert.equal(status, 200)
     assert.ok(Array.isArray(body?.items), 'list must return items')
     assert.ok(body.items.length > 0, 'at least one source must answer with skills')

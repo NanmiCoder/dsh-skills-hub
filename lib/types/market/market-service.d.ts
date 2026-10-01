@@ -10,7 +10,7 @@
  * `InstalledLookup` (see `setInstalledLookup`), so this file can be unit-tested
  * by pointing the providers at a stub server.
  */
-import { type MarketFileContent, type MarketListResult, type MarketSource, type NormalizedSkill, type NormalizedSkillDetail, type SecurityStatus, type SourceStatusInfo } from './types.ts';
+import { type MarketCategoriesResult, type MarketFileContent, type MarketListResult, type MarketSource, type NormalizedSkill, type NormalizedSkillDetail, type SecurityStatus, type SourceStatusInfo } from './types.ts';
 /**
  * Local install state, injected by the plugin host (which owns the skills
  * directory). Both methods are synchronous: the host keeps an in-memory index
@@ -55,6 +55,13 @@ export declare function applyFileLimits(detail: NormalizedSkillDetail): Normaliz
 export declare function dedupeSkills(items: NormalizedSkill[]): NormalizedSkill[];
 export interface ListMarketSkillsParams {
     q?: string;
+    /**
+     * `catalog` (default): the curated snapshot shipped with the plugin.
+     * `market`: live upstream list/search across both registries.
+     */
+    scope?: 'catalog' | 'market';
+    /** Catalogue category key; ignored by the live market scope. */
+    category?: string;
     source: 'all' | MarketSource;
     security: 'all' | SecurityStatus;
     installed: 'all' | 'installed' | 'installable';
@@ -64,15 +71,30 @@ export interface ListMarketSkillsParams {
     refresh?: boolean;
 }
 export declare function listMarketSkills(params: ListMarketSkillsParams): Promise<MarketListResult>;
+/**
+ * One page of the curated catalogue.
+ *
+ * Everything is local, so every filter — security and installed included — runs
+ * before pagination: a page is always full until the list is exhausted, which
+ * is what keeps infinite scroll from stalling on a filtered-out page.
+ */
+export declare function listCatalogSkills(params: ListMarketSkillsParams): MarketListResult;
+export declare function listMarketCategories(): MarketCategoriesResult;
 export declare function getMarketSkillDetail(source: MarketSource, slug: string, options?: {
     force?: boolean;
     allowStale?: boolean;
+    owner?: string;
 }): Promise<{
     skill: NormalizedSkillDetail;
     sourceStatus: SourceStatusInfo;
 }>;
 export declare function isValidMarketFilePath(filePath: string): boolean;
-export declare function getMarketFileContent(source: MarketSource, slug: string, filePath: string): Promise<MarketFileContent>;
+export declare function getMarketFileContent(source: MarketSource, slug: string, filePath: string, owner?: string): Promise<MarketFileContent>;
+/**
+ * Pin a ClawHub read to the owner the reader asked for. ClawHub slugs are
+ * shared across authors, so `clawhub:<slug>` alone does not name one skill.
+ */
+export declare function withMarketOwner<T>(source: MarketSource, slug: string, owner: string | undefined, operation: () => Promise<T>): Promise<T>;
 export declare function getMarketStatus(): Record<MarketSource, SourceStatusInfo>;
 /**
  * Look up a single skill for an install (the detail path, bypassing the list).
@@ -82,5 +104,5 @@ export declare function getMarketStatus(): Record<MarketSource, SourceStatusInfo
  * right now — the file bytes are fetched fresh and hash-verified against the
  * list, so the list must come from the same generation as those bytes.
  */
-export declare function resolveMarketSkill(source: MarketSource, slug: string): Promise<NormalizedSkillDetail>;
+export declare function resolveMarketSkill(source: MarketSource, slug: string, owner?: string): Promise<NormalizedSkillDetail>;
 export {};

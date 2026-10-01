@@ -26,6 +26,7 @@
 
 import { useState, useSyncExternalStore } from 'react'
 import type {
+  MarketCategory,
   MarketFileContent,
   MarketSource,
   NormalizedSkill,
@@ -34,6 +35,7 @@ import type {
   SourceStatusInfo,
 } from '../market/types.ts'
 import {
+  fetchMarketCategories,
   fetchMarketList,
   fetchSkillDetail,
   fetchSkillFile,
@@ -65,9 +67,20 @@ export function isMarketNoticeCode(notice: string): notice is MarketNoticeCode {
   return (MARKET_NOTICE_CODES as readonly string[]).includes(notice)
 }
 
+/** Tabs of the market detail page. */
+export type MarketDetailTab = 'overview' | 'files' | 'security' | 'changelog'
+
 /** Active catalogue filters. */
 export interface MarketFilters {
   q: string
+  /**
+   * `catalog`: the curated list shipped with the plugin (default).
+   * `market`: live search across both registries, entered explicitly from a
+   * catalogue search; clearing the query returns to the catalogue.
+   */
+  scope: 'catalog' | 'market'
+  /** Catalogue category key, or `'all'`. */
+  category: string
   source: 'all' | MarketSource
   security: 'all' | SecurityStatus
   installed: 'all' | 'installed' | 'installable'
@@ -76,8 +89,12 @@ export interface MarketFilters {
 /** Everything the panel renders from. Immutable: each commit publishes a new object. */
 export interface MarketState {
   filters: MarketFilters
+  /** Category bar entries; empty until loaded. */
+  categories: MarketCategory[]
   items: NormalizedSkill[]
   nextCursor: string | null
+  /** Matching skills in total, when the list knows it (the curated catalogue does). */
+  total: number | null
   sources: Record<MarketSource, SourceStatusInfo>
   /** Each card retains the provenance of its own page when more pages append. */
   itemStatuses: Record<string, SourceStatusInfo>
@@ -90,7 +107,7 @@ export interface MarketState {
   detailStatus: SourceStatusInfo | null
   detailLoading: boolean
   detailError: string | null
-  activeTab: 'overview' | 'files'
+  activeTab: MarketDetailTab
   file: MarketFileContent | null
   fileLoading: boolean
   installingIds: ReadonlySet<string>
@@ -107,12 +124,17 @@ export interface MarketController {
   refresh(options?: { force?: boolean }): Promise<void>
   loadMore(): Promise<void>
   setQuery(q: string): void
+  setCategory(category: MarketFilters['category']): void
+  setScope(scope: MarketFilters['scope']): void
+  /** Load the category bar once per controller (repeat calls share it). */
+  loadCategories(): Promise<void>
   setSource(source: MarketFilters['source']): void
   setSecurity(security: MarketFilters['security']): void
   setInstalledFilter(installed: MarketFilters['installed']): void
-  openDetail(id: string, options?: { refresh?: boolean }): Promise<void>
+  /** `owner` names the registry author when the id alone is ambiguous (ClawHub). */
+  openDetail(id: string, options?: { refresh?: boolean; owner?: string }): Promise<void>
   closeDetail(): void
-  setTab(tab: 'overview' | 'files'): void
+  setTab(tab: MarketDetailTab): void
   selectFile(path: string): Promise<void>
   requestInstall(id: string): void
   cancelInstall(): void
@@ -148,9 +170,11 @@ function emptySources(): Record<MarketSource, SourceStatusInfo> {
 
 function initialState(): MarketState {
   return {
-    filters: { q: '', source: 'all', security: 'all', installed: 'all' },
+    filters: { q: '', scope: 'catalog', category: 'all', source: 'all', security: 'all', installed: 'all' },
+    categories: [],
     items: [],
     nextCursor: null,
+    total: null,
     sources: emptySources(),
     itemStatuses: {},
     loading: false,
@@ -252,7 +276,24 @@ function createInternalController(): MarketControllerInternal {
   let inFlightCursor: string | null = null
   let inFlightFileKey: string | null = null
 
+  // ClawHub slugs are shared across authors, so `clawhub:<slug>` does not name
+  // one skill. Every card and detail records whose skill it showed, and every
+  // later read or install of that id asks for that author.
+  const owners = new Map<string, string>()
+
+  function rememberOwners(items: readonly NormalizedSkill[]): void {
+    for (const item of items) {
+      if (item.source === 'clawhub' && item.author.handle) owners.set(item.id, item.author.handle)
+    }
+  }
+
+  function ownerOf(id: string): string | undefined {
+    return owners.get(id)
+  }
+
   function commit(patch: Partial<MarketState>): void {
+    if (patch.items) rememberOwners(patch.items)
+    if (patch.detail) rememberOwners([patch.detail])
     state = { ...state, ...patch }
     // Iterate a copy: a listener may unsubscribe while being notified.
     for (const listener of [...listeners]) listener()
@@ -271,8 +312,8 @@ function createInternalController(): MarketControllerInternal {
 
   /** Identity of a list request: any filter change makes a different request. */
   function currentListKey(): string {
-    const { q, source, security, installed } = state.filters
-    return JSON.stringify([q.trim(), source, security, installed])
+    const { q, scope, category, source, security, installed } = state.filters
+    return JSON.stringify([q.trim(), scope, category, source, security, installed])
   }
 
   function setNotice(notice: string | null): void {
@@ -336,13 +377,15 @@ function createInternalController(): MarketControllerInternal {
     inFlightCursor = null
     // Clearing the page is deliberate (it is what the reference store does): the
     // grid must not show results that belong to the previous filters.
-    commit({ loading: true, loadingMore: false, error: null, items: [], itemStatuses: {}, nextCursor: null })
+    commit({ loading: true, loadingMore: false, error: null, items: [], itemStatuses: {}, nextCursor: null, total: null })
 
     const promise = (async () => {
       try {
         const result = await fetchMarketList(
           {
             q: filters.q.trim() || undefined,
+            scope: filters.scope,
+            category: filters.category,
             source: filters.source,
             security: filters.security,
             installed: filters.installed,
@@ -357,6 +400,7 @@ function createInternalController(): MarketControllerInternal {
         commit({
           items: result.items,
           nextCursor: result.nextCursor,
+          total: result.total ?? null,
           sources: result.sources,
           itemStatuses: itemStatuses(result.items, result.sources),
           loading: false,
@@ -391,6 +435,8 @@ function createInternalController(): MarketControllerInternal {
       const result = await fetchMarketList(
         {
           q: filters.q.trim() || undefined,
+          scope: filters.scope,
+          category: filters.category,
           source: filters.source,
           security: filters.security,
           installed: filters.installed,
@@ -427,7 +473,30 @@ function createInternalController(): MarketControllerInternal {
   }
 
   function setQuery(q: string): void {
-    applyInstantFilter({ q })
+    // The live market is a search scope: with nothing to search it has no list
+    // to show, so an emptied query returns to the catalogue.
+    applyInstantFilter(q.trim() === '' ? { q, scope: 'catalog' } : { q })
+  }
+
+  let categoriesRequest: Promise<void> | null = null
+
+  /**
+   * The bar is navigation over the catalogue: a failure leaves it hidden and is
+   * retried on the next call, never surfaced as a catalogue error.
+   */
+  function loadCategories(): Promise<void> {
+    if (categoriesRequest !== null) return categoriesRequest
+    const request = (async () => {
+      try {
+        const result = await fetchMarketCategories()
+        commit({ categories: result.items })
+        if (result.items.length === 0) categoriesRequest = null
+      } catch {
+        categoriesRequest = null
+      }
+    })()
+    categoriesRequest = request
+    return request
   }
 
   function isCurrentDetail(id: string): boolean {
@@ -442,6 +511,7 @@ function createInternalController(): MarketControllerInternal {
     try {
       const { skill, sourceStatus } = await fetchSkillDetail(id, controller.signal, {
         refresh: options.refresh === true,
+        owner: ownerOf(id),
       })
       // The reader may have closed the panel view or opened another skill while
       // this was in flight; the newest request owns the pane.
@@ -464,7 +534,8 @@ function createInternalController(): MarketControllerInternal {
   }
 
   /** Show a previous copy immediately, then check the Host's authoritative cache. */
-  async function openDetail(id: string, options: { refresh?: boolean } = {}): Promise<void> {
+  async function openDetail(id: string, options: { refresh?: boolean; owner?: string } = {}): Promise<void> {
+    if (options.owner) owners.set(id, options.owner)
     const cached = options.refresh === true ? undefined : detailCache.get(id)
     fileSequence += 1
     fileAbort?.abort()
@@ -505,7 +576,7 @@ function createInternalController(): MarketControllerInternal {
     })
   }
 
-  function setTab(tab: 'overview' | 'files'): void {
+  function setTab(tab: MarketDetailTab): void {
     commit({ activeTab: tab })
     if (tab !== 'files') return
     // Opening the Files tab with nothing selected would show an empty pane; the
@@ -532,7 +603,7 @@ function createInternalController(): MarketControllerInternal {
     inFlightFileKey = key
     commit({ file: null, fileLoading: true })
     try {
-      const file = await fetchSkillFile(id, path, controller.signal)
+      const file = await fetchSkillFile(id, path, controller.signal, ownerOf(id))
       if (sequence !== fileSequence) return
       commit({ file, fileLoading: false })
     } catch (error) {
@@ -565,7 +636,7 @@ function createInternalController(): MarketControllerInternal {
     if (id === null || state.installingIds.has(id)) return
     commit({ installingIds: withId(state.installingIds, id), notice: null })
     try {
-      const result = await installSkill(id)
+      const result = await installSkill(id, ownerOf(id))
       applySkillUpdate(result.skill)
       setNotice('installDone')
     } catch (error) {
@@ -609,6 +680,15 @@ function createInternalController(): MarketControllerInternal {
     refresh,
     loadMore,
     setQuery,
+    setCategory: (category) => {
+      if (category === state.filters.category) return
+      applyInstantFilter({ category })
+    },
+    loadCategories,
+    setScope: (scope) => {
+      if (scope === state.filters.scope) return
+      applyInstantFilter({ scope })
+    },
     setSource: (source) => {
       applyInstantFilter({ source })
     },

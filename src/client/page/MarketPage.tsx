@@ -20,7 +20,7 @@ import type { MarketSource } from '../../market/types.ts'
 import { InstallConfirmDialog } from '../components/InstallConfirmDialog.tsx'
 import { InstalledSkills } from '../components/InstalledSkills.tsx'
 import { MarketHome } from '../components/MarketHome.tsx'
-import { SkillDetailView } from '../components/SkillDetailView.tsx'
+import { MarketSkillDetail } from '../components/MarketSkillDetail.tsx'
 import { SkillDetailSkeleton } from '../components/SkillDetailShell.tsx'
 import { LocaleProvider, useT, type Translate } from '../locale-context.tsx'
 import { NS } from '../locales.ts'
@@ -60,6 +60,7 @@ function MarketPageSurface({ controller }: { controller: MarketController }): JS
   // absorbed by the same guard.
   useEffect(() => {
     void controller.refresh()
+    void controller.loadCategories()
   }, [controller])
 
   const confirmSkill = state.confirmInstallId === null ? null : confirmSkillOf(state, state.confirmInstallId)
@@ -76,15 +77,15 @@ function MarketPageSurface({ controller }: { controller: MarketController }): JS
             onChanged={() => { controller.closeDetail(); void controller.refresh() }}
             // A locally installed skill that carries market provenance opens
             // the marketplace's own detail page: upstream facts stay upstream.
-            onOpenMarket={(id) => {
+            onOpenMarket={(id, owner) => {
               setSection('market')
-              void controller.openDetail(id)
+              void controller.openDetail(id, { owner })
             }}
           />
         ) : state.view.kind === 'home' ? (
           <MarketHome state={state} controller={controller} />
         ) : state.detail !== null ? (
-          <SkillDetailView detail={state.detail} state={state} controller={controller} />
+          <MarketSkillDetail detail={state.detail} state={state} controller={controller} />
         ) : state.detailError === null ? (
           <SkillDetailSkeleton onBack={() => controller.closeDetail()} />
         ) : (
@@ -162,8 +163,11 @@ function confirmSkillOf(state: MarketState, id: string): ConfirmSkill {
       name: skill.name,
       source: skill.source,
       version: skill.version,
+      iconUrl: skill.iconUrl,
       securityStatus: skill.securityStatus,
       authorName: skill.author.displayName ?? skill.author.handle,
+      // What the skill will be able to do is only known once its files are.
+      ...(fromDetail && state.detail !== null ? { detail: state.detail } : {}),
       ...(snapshotAt === undefined ? {} : { snapshotAt }),
     }
   }

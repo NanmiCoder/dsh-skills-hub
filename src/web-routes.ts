@@ -1,7 +1,7 @@
 /**
  * Skills Hub HTTP surface.
  *
- * One `prefix` route (`/api/skills-hub`) owns the seven endpoints the panel
+ * One `prefix` route (`/api/skills-hub`) owns the endpoints the panel
  * needs; every response is JSON with `Cache-Control: no-store`, because the
  * panel polls and every payload is either live upstream data or live disk state.
  *
@@ -27,10 +27,12 @@ import {
   getMarketSkillDetail,
   getMarketStatus,
   isValidMarketFilePath,
+  listMarketCategories,
   listMarketSkills,
   type ListMarketSkillsParams,
 } from './market/market-service.ts'
 import { getMarketStats } from './market/cache.ts'
+import { CLAWHUB_OWNER_PATTERN } from './market/clawhub-provider.ts'
 import { readInstalledFile, readInstalledSkill, removeInstalledSkill } from './skills/management.ts'
 import { scanInstalledSkills } from './skills/installed.ts'
 import { resolveSkillsScanRoots } from './skills/root.ts'
@@ -324,6 +326,30 @@ function enumQuery<T extends string>(url: URL, name: string, allowed: readonly T
   throw new RouteError(400, 'BAD_REQUEST', `Invalid ${name} filter: ${raw}`)
 }
 
+/** Shape of a catalogue category key. */
+const CATEGORY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/
+
+/** `category` query parameter: a catalogue category key, shape-checked only. */
+function parseCategory(url: URL): string | undefined {
+  const raw = url.searchParams.get('category')
+  if (raw === null || raw === '' || raw === 'all') return undefined
+  if (!CATEGORY_KEY_PATTERN.test(raw)) throw new RouteError(400, 'BAD_REQUEST', `Invalid category: ${raw}`)
+  return raw
+}
+
+/**
+ * Optional registry owner. ClawHub slugs are shared across authors, so the
+ * panel names the author of the card it opened; a malformed owner is refused
+ * rather than silently dropped (that would fall back to guessing).
+ */
+function parseOwner(raw: unknown): string | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  if (typeof raw !== 'string' || !CLAWHUB_OWNER_PATTERN.test(raw)) {
+    throw new RouteError(400, 'BAD_REQUEST', `Invalid owner: ${String(raw)}`)
+  }
+  return raw
+}
+
 /** `limit` query parameter, clamped into the documented range. */
 function parseLimit(url: URL): number {
   const raw = url.searchParams.get('limit')
@@ -369,6 +395,8 @@ async function handleStats(res: ServerResponse): Promise<void> {
 async function handleList(url: URL, res: ServerResponse): Promise<void> {
   const params: ListMarketSkillsParams = {
     q: optionalQuery(url, 'q', MAX_QUERY_LENGTH),
+    scope: enumQuery<'catalog' | 'market'>(url, 'scope', ['catalog', 'market'], 'catalog'),
+    category: parseCategory(url),
     source: enumQuery<'all' | MarketSource>(url, 'source', ['all', ...MARKET_SOURCES], 'all'),
     security: enumQuery<'all' | SecurityStatus>(url, 'security', ['all', ...SECURITY_FILTERS], 'all'),
     installed: enumQuery<(typeof INSTALLED_FILTERS)[number]>(url, 'installed', INSTALLED_FILTERS, 'all'),
@@ -380,8 +408,13 @@ async function handleList(url: URL, res: ServerResponse): Promise<void> {
   sendJson(res, 200, result)
 }
 
+async function handleCategories(res: ServerResponse): Promise<void> {
+  sendJson(res, 200, listMarketCategories())
+}
+
 async function handleDetail(source: MarketSource, slug: string, url: URL, res: ServerResponse): Promise<void> {
-  sendJson(res, 200, await getMarketSkillDetail(source, slug, { force: parseRefresh(url) }))
+  const owner = parseOwner(url.searchParams.get('owner'))
+  sendJson(res, 200, await getMarketSkillDetail(source, slug, { force: parseRefresh(url), owner }))
 }
 
 async function handleFile(source: MarketSource, slug: string, url: URL, res: ServerResponse): Promise<void> {
@@ -389,7 +422,8 @@ async function handleFile(source: MarketSource, slug: string, url: URL, res: Ser
   if (!isValidMarketFilePath(filePath)) {
     throw new RouteError(400, 'BAD_REQUEST', `Invalid file path: ${filePath}`)
   }
-  sendJson(res, 200, { file: await getMarketFileContent(source, slug, filePath) })
+  const owner = parseOwner(url.searchParams.get('owner'))
+  sendJson(res, 200, { file: await getMarketFileContent(source, slug, filePath, owner) })
 }
 
 /**
@@ -406,10 +440,12 @@ async function handleInstalled(deps: SkillsHubRoutesDeps, res: ServerResponse): 
 }
 
 async function handleInstall(req: IncomingMessage, deps: SkillsHubRoutesDeps, res: ServerResponse): Promise<void> {
-  const { source, slug } = parseBodyId(await readJsonBody(req))
+  const body = await readJsonBody(req)
+  const { source, slug } = parseBodyId(body)
   const result = await installMarketSkill(source, slug, {
     skillsRoot: await deps.skillsRoot(),
     allowUninstall: deps.allowUninstall(),
+    owner: parseOwner(body['owner']),
   })
   // Refresh before answering, so the next /skills or /installed call is correct.
   await deps.rescan().catch(() => undefined)
@@ -459,6 +495,11 @@ async function handle(
   if (head === 'status' && segments.length === 1) {
     requireMethod(method, 'GET')
     await handleStatus(res)
+    return
+  }
+  if (head === 'categories' && segments.length === 1) {
+    requireMethod(method, 'GET')
+    await handleCategories(res)
     return
   }
   if (head === 'stats' && segments.length === 1) {

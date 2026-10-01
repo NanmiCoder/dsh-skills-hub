@@ -1,74 +1,55 @@
 /**
- * The detail surface shared by the market catalogue and the installed inventory.
+ * The detail surface shared by the market catalogue and the installed inventory
+ * (design: "技能市场重构 – 详情页").
  *
  * Both pages answer the same question — "what is inside this skill?" — and the
  * only real difference is where the facts come from: an upstream provider or the
- * filesystem. Everything that is *reading* rather than *fetching* therefore
- * lives here: the back affordance, the identity header, the two tabs, the
- * document column, the facts rail and the focus move that keeps a keyboard user
- * from being left at the top of the document when the list is replaced.
- *
- * The two pages are not identical, so the shell takes slots rather than a data
- * model: `badges`, `notice`, `overview`, `files` and `rail` are composed by the
- * caller, while each caller owns its own loading state and its own choice of tab
- * storage (the market page keeps it in `MarketState`, the local page in its own
- * component state).
+ * filesystem. The shell therefore owns everything that is *layout*: breadcrumb,
+ * identity header, stats strip, underlined tabs, the grey canvas, and the
+ * document/side-rail columns. Callers compose the header pieces and the active
+ * tab's content, and keep their own tab state (the market page in
+ * `MarketState`, the local page in component state).
  */
 
 import { useEffect, useRef, type ReactNode } from 'react'
-import { Button, SegmentedTabs, type SegmentedTab } from '@deepseek-ai/dsh-client-ui-primitives'
-import { ArrowLeftIcon } from '../icons.tsx'
+import type { SecurityStatus } from '../../market/types.ts'
+import { AlertIcon, ArrowLeftIcon, ShieldIcon } from '../icons.tsx'
 import { useT } from '../locale-context.tsx'
 import styles from './SkillDetailShell.module.css'
 
-/** Tab values every detail page offers, in render order. */
-export type SkillDetailTab = 'overview' | 'files'
-
-/** Stable DOM ids for the tab list and its panels; one detail page is mounted at a time. */
-const TAB_ID = 'skills-hub-detail-tab'
-const PANEL_ID = 'skills-hub-detail-panel'
-
-/**
- * The shell's stylesheet, re-exported for its callers.
- *
- * The pages built on this shell also render shell-shaped fragments (a report
- * row, a path line, a facts list) and reaching them through an import is more
- * honest than re-declaring near-copies of the same rules in a second module.
- */
+/** The shell's stylesheet, for callers composing shell-shaped fragments. */
 export const detailStyles = styles
 
-/** One label/value row of the facts rail. */
-export function Fact(props: { label: string; children: ReactNode }): JSX.Element {
-  return (
-    <div className={styles.fact}>
-      <dt className={styles.factLabel}>{props.label}</dt>
-      <dd className={styles.factValue}>{props.children}</dd>
-    </div>
-  )
+export interface DetailTab<K extends string> {
+  key: K
+  label: string
+  /** Small trailing marker: a count, or a warning dot. */
+  badge?: ReactNode
 }
 
-export function SkillDetailShell(props: {
-  /** Identity of the rendered subject; changing it moves focus back to the heading. */
+export function SkillDetailShell<K extends string>(props: {
+  /** Identity of the rendered subject; changing it moves focus to the heading. */
   focusKey: string
   onBack: () => void
+  /** Breadcrumb root: the list this page was opened from. */
   backLabel: string
   avatar: ReactNode
-  /** Small line above the name: source, version, provenance. */
-  eyebrow: ReactNode
   name: string
-  badges?: ReactNode
+  version?: string
+  /** One line of "by author · source · licence · updated" facts. */
+  meta?: ReactNode
   summary?: string
-  /** Full-width band under the header (warnings, security reports). */
+  chips?: ReactNode
+  actions?: ReactNode
+  stats?: Array<{ label: string; value: string }>
+  tabs: Array<DetailTab<K>>
+  activeTab: K
+  onTabChange: (tab: K) => void
+  /** Notes above the tab content (snapshot age, location, warnings). */
   notice?: ReactNode
-  overviewLabel: string
-  filesLabel: string
-  activeTab: SkillDetailTab
-  onTabChange: (tab: SkillDetailTab) => void
-  overview: ReactNode
-  files: ReactNode
-  rail: ReactNode
+  children: ReactNode
 }): JSX.Element {
-  const { name, activeTab, onTabChange } = props
+  const t = useT()
   const headingRef = useRef<HTMLHeadingElement>(null)
 
   // The list is replaced by this page without a route change, so focus has to
@@ -77,106 +58,182 @@ export function SkillDetailShell(props: {
     headingRef.current?.focus()
   }, [props.focusKey])
 
-  const tabs: [SegmentedTab<SkillDetailTab>, ...SegmentedTab<SkillDetailTab>[]] = [
-    { value: 'overview', label: props.overviewLabel, id: `${TAB_ID}-overview`, panelId: `${PANEL_ID}-overview` },
-    { value: 'files', label: props.filesLabel, id: `${TAB_ID}-files`, panelId: `${PANEL_ID}-files` },
-  ]
-
   return (
-    <div className={styles.detail}>
-      <div className={styles.back}>
-        <Button variant="ghost" size="sm" icon={<ArrowLeftIcon size={16} />} onClick={props.onBack}>
-          {props.backLabel}
-        </Button>
+    <div className={styles.page}>
+      <div className={styles.top}>
+        <nav className={styles.crumbs} aria-label={t('breadcrumb')}>
+          <button type="button" className={styles.crumbBack} onClick={props.onBack}>
+            <ArrowLeftIcon size={14} />
+            {props.backLabel}
+          </button>
+          <span aria-hidden="true">/</span>
+          <span className={styles.crumbCurrent}>{props.name}</span>
+        </nav>
+
+        <header className={styles.hero}>
+          {props.avatar}
+          <div className={styles.heroText}>
+            <div className={styles.titleRow}>
+              <h1 ref={headingRef} tabIndex={-1} className={styles.title}>
+                {props.name}
+              </h1>
+              {props.version !== undefined && props.version !== '' && (
+                <span className={styles.versionChip}>v{props.version}</span>
+              )}
+            </div>
+            {props.meta !== undefined && <p className={styles.meta}>{props.meta}</p>}
+            {props.summary !== undefined && props.summary !== '' && <p className={styles.summary}>{props.summary}</p>}
+            {props.chips !== undefined && <div className={styles.chips}>{props.chips}</div>}
+          </div>
+          {props.actions !== undefined && <div className={styles.actions}>{props.actions}</div>}
+        </header>
+
+        {props.stats !== undefined && props.stats.length > 0 && (
+          <dl className={styles.stats}>
+            {props.stats.map((stat) => (
+              <div key={stat.label} className={styles.stat}>
+                <dt>{stat.label}</dt>
+                <dd>{stat.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+
+        <div className={styles.tabs} role="tablist" aria-label={props.name}>
+          {props.tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              id={`skills-hub-tab-${tab.key}`}
+              aria-selected={props.activeTab === tab.key}
+              aria-controls={`skills-hub-panel-${tab.key}`}
+              className={styles.tab}
+              onClick={() => props.onTabChange(tab.key)}
+            >
+              {tab.label}
+              {tab.badge}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <header className={styles.header}>
-        {props.avatar}
-        <div className={styles.headerText}>
-          <p className={styles.eyebrow}>{props.eyebrow}</p>
-          <h1 ref={headingRef} tabIndex={-1} className={styles.name}>
-            {name}
-          </h1>
-          {props.badges === undefined ? null : <div className={styles.badges}>{props.badges}</div>}
-          {props.summary === undefined || props.summary === '' ? null : (
-            <p className={styles.summary}>{props.summary}</p>
-          )}
-        </div>
-      </header>
-
-      {props.notice}
-
-      <div className={styles.columns}>
-        <main className={styles.main}>
-          <SegmentedTabs items={tabs} value={activeTab} onChange={onTabChange} label={name} />
-
-          {activeTab === 'overview' && (
-            <section
-              className={styles.panel}
-              id={`${PANEL_ID}-overview`}
-              role="tabpanel"
-              aria-labelledby={`${TAB_ID}-overview`}
-            >
-              {props.overview}
-            </section>
-          )}
-
-          {activeTab === 'files' && (
-            <section
-              className={styles.panel}
-              id={`${PANEL_ID}-files`}
-              role="tabpanel"
-              aria-labelledby={`${TAB_ID}-files`}
-            >
-              {props.files}
-            </section>
-          )}
-        </main>
-
-        <aside className={styles.rail}>
-          <div className={styles.railCard}>{props.rail}</div>
-        </aside>
+      <div
+        className={styles.body}
+        role="tabpanel"
+        id={`skills-hub-panel-${props.activeTab}`}
+        aria-labelledby={`skills-hub-tab-${props.activeTab}`}
+      >
+        {props.notice}
+        {props.children}
       </div>
     </div>
   )
 }
 
+/** Document column plus side rail; the rail moves below on a narrow panel. */
+export function DetailColumns(props: { main: ReactNode; side: ReactNode }): JSX.Element {
+  return (
+    <div className={styles.columns}>
+      <div className={styles.main}>{props.main}</div>
+      <aside className={styles.side}>{props.side}</aside>
+    </div>
+  )
+}
+
+export function SideCard(props: { title: string; extra?: ReactNode; children: ReactNode }): JSX.Element {
+  return (
+    <section className={styles.sideCard}>
+      <header className={styles.sideHeader}>
+        <h2 className={styles.sideTitle}>{props.title}</h2>
+        {props.extra}
+      </header>
+      {props.children}
+    </section>
+  )
+}
+
+export function InfoRow(props: { label: string; value: ReactNode; mono?: boolean }): JSX.Element {
+  return (
+    <div className={styles.infoRow}>
+      <dt>{props.label}</dt>
+      <dd className={props.mono === true ? styles.mono : undefined}>{props.value}</dd>
+    </div>
+  )
+}
+
+/** Count in a tab label ("文件 15"). */
+export function TabCount(props: { value: number }): JSX.Element {
+  return <span className={styles.tabCount}>{props.value}</span>
+}
+
+type ChipTone = 'plain' | 'ok' | 'warn' | 'blue'
+
+export function Chip(props: { tone?: ChipTone; title?: string; children: ReactNode }): JSX.Element {
+  const tone = props.tone ?? 'plain'
+  return (
+    <span className={`${styles.chip} ${tone === 'plain' ? '' : styles[`chip_${tone}`] ?? ''}`} title={props.title}>
+      {props.children}
+    </span>
+  )
+}
+
+const SECURITY_TONE: Record<SecurityStatus, ChipTone> = {
+  verified: 'ok',
+  benign: 'ok',
+  unknown: 'plain',
+  flagged: 'warn',
+}
+
+/** Upstream scan verdict, shared by the cards, the detail header and the install dialog. */
+export function SecurityChip(props: { status: SecurityStatus; short?: boolean }): JSX.Element {
+  const t = useT()
+  const tone = SECURITY_TONE[props.status]
+  return (
+    <Chip tone={tone}>
+      {tone === 'warn' ? <AlertIcon size={13} /> : <ShieldIcon size={13} />}
+      {t(`${props.short === true ? 'scanShort' : 'scan'}.${props.status}`)}
+    </Chip>
+  )
+}
+
 /**
- * Keeps the detail layout stable while its request is in flight.
- *
- * It renders the same boxes as the real page rather than a spinner, because the
- * click that opens a detail is the moment the panel changes shape; a centered
- * "loading" line would make that change happen twice.
+ * Keeps the detail layout stable while its request is in flight: the same
+ * boxes as the real page rather than a spinner, so the page changes shape once.
  */
-export function SkillDetailSkeleton({ onBack }: { onBack: () => void }): JSX.Element {
+export function SkillDetailSkeleton({ onBack, backLabel }: { onBack: () => void; backLabel?: string }): JSX.Element {
   const t = useT()
   return (
-    <div className={styles.detail} aria-busy="true">
-      <div className={styles.back}>
-        <Button variant="ghost" size="sm" icon={<ArrowLeftIcon size={16} />} onClick={onBack}>
-          {t('back')}
-        </Button>
-      </div>
-      <div role="status" aria-label={t('loading')}>
-        <div aria-hidden="true">
-          <div className={styles.header}>
+    <div className={styles.page} aria-busy="true">
+      <div className={styles.top}>
+        <nav className={styles.crumbs}>
+          <button type="button" className={styles.crumbBack} onClick={onBack}>
+            <ArrowLeftIcon size={14} />
+            {backLabel ?? t('marketTab')}
+          </button>
+        </nav>
+        <div role="status" aria-label={t('loading')}>
+          <div className={styles.hero} aria-hidden="true">
             <span className={styles.skeletonAvatar} />
-            <div className={styles.headerText}>
+            <div className={styles.heroText}>
               <span className={styles.skeletonTitle} />
               <span className={styles.skeletonLine} />
               <span className={styles.skeletonLine} />
             </div>
           </div>
-          <div className={styles.columns} style={{ marginTop: 24 }}>
-            <div className={styles.main}>
-              <div className={styles.panel}>
-                {Array.from({ length: 10 }, (_, index) => <span className={styles.skeletonLine} key={index} />)}
-              </div>
+        </div>
+        <div className={styles.tabs} aria-hidden="true" />
+      </div>
+      <div className={styles.body} aria-hidden="true">
+        <div className={styles.columns}>
+          <div className={styles.main}>
+            <div className={styles.card}>
+              {Array.from({ length: 9 }, (_, index) => <span className={styles.skeletonLine} key={index} />)}
             </div>
-            <div className={styles.rail}>
-              <div className={styles.panel}>
-                {Array.from({ length: 5 }, (_, index) => <span className={styles.skeletonLine} key={index} />)}
-              </div>
+          </div>
+          <div className={styles.side}>
+            <div className={styles.sideCard}>
+              {Array.from({ length: 5 }, (_, index) => <span className={styles.skeletonLine} key={index} />)}
             </div>
           </div>
         </div>

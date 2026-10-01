@@ -19,16 +19,17 @@
 
 Search ClawHub and SkillHub, read a skill’s instructions, and install it into Harness. Manage marketplace installations and existing local skills together in **Installed**.
 
-Current version: **0.0.2**. Browsed lists, details and file previews are cached locally for 60 minutes by default and remain available after restarting the desktop app. [Release notes](./release-notes/v0.0.2.md)
+Current version: **0.0.3**. The home page now opens on 398 curated skills in 13 categories, with a redesigned detail page that explains what a skill will do once installed. [Release notes](./release-notes/v0.0.3.md)
 
 <p align="center">
-  <img src="./assets/readme/marketplace.png" width="100%" alt="Skills Hub marketplace with search, filters and skill cards.">
+  <img src="./assets/readme/marketplace.png" width="100%" alt="Skills Hub marketplace with categories, search, filters and curated skill cards.">
 </p>
 
 | Feature | What it does |
 | --- | --- |
-| **Discover skills** | Search and filter ClawHub and SkillHub together, with more results as you scroll. |
-| **Preview before installing** | Read instructions, inspect files and check security reports from the source. |
+| **Curated catalogue** | 398 popular ClawHub and SkillHub skills in 13 categories, shipped with the plugin and shown instantly. |
+| **Live search** | Type a keyword to search every skill on both marketplaces; same-name skills are told apart by author. |
+| **Preview before installing** | Read instructions and files, check upstream scans, and see the commands, secrets and network hosts a skill uses. |
 | **Manage installed skills** | Search local skills, inspect their source and installation path, and confirm removal. |
 | **Local cache** | Reuse browsed pages, details and file previews across desktop restarts. |
 
@@ -47,18 +48,18 @@ https://github.com/NanmiCoder/dsh-skills-hub
 **Or the npm package name**
 
 ```text
-@nanmicoder/dsh-skills-hub@0.0.2
+@nanmicoder/dsh-skills-hub@0.0.3
 ```
 
 Click **Install → Enable now**, then open **Skills Hub** from the sidebar.
 
 ## Use
 
-1. **Find**: enter a keyword or filter by source and security status.
+1. **Find**: browse the curated catalogue by category, or enter a keyword to search every skill.
 2. **Preview**: open a skill to read its instructions and inspect its files.
 3. **Install and manage**: confirm installation, then find or remove it in **Installed**.
 
-Skills come from third-party authors. Check the source and instructions before installing; security reports are provided for reference.
+Skills are published by third-party community authors. Skills Hub is a community plugin, not a DeepSeek product. The curated list is a recommendation, not a security guarantee; check the security report and SKILL.md before installing.
 
 ## Installed skills
 

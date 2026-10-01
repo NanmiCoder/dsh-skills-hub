@@ -1,10 +1,10 @@
-# Skills Hub 0.0.2 implementation contract
+# Skills Hub 0.0.3 implementation contract
 
 This document describes the shipped code, not a migration plan. The TypeScript models in `src/market/types.ts`, `src/skills/installed.ts` and `src/client/api.ts` define the detailed wire shapes. Update this document with API changes.
 
 ## 1. Package and host
 
-The package is `@nanmicoder/dsh-skills-hub`, version `0.0.2`. Its supported host package cohort is exactly `0.2.0-rc.2`; the desktop release line is 0.2.0. The exact upstream tag and commit are recorded in `compatibility.json` and [COMPATIBILITY.md](COMPATIBILITY.md).
+The package is `@nanmicoder/dsh-skills-hub`, version `0.0.3`. Its supported host package cohort is exactly `0.2.0-rc.2`; the desktop release line is 0.2.0. The exact upstream tag and commit are recorded in `compatibility.json` and [COMPATIBILITY.md](COMPATIBILITY.md).
 
 `cordis.patch.yml` inserts one row (`id: skills-hub`) named after the scoped package. `lib/index.js` is the host entry. `lib/client.js` is the browser factory registered with `window.__ModuleLoader__.load` under that same package name. The plugin adds a global sidebar panel and does not replace built-in components or require an agent session.
 
@@ -55,7 +55,9 @@ After mutations the plugin refreshes its installed lookup. Harness's filesystem 
 
 ## 4. Marketplace models and limits
 
-Providers normalize ClawHub and SkillHub into `NormalizedSkill`. A market ID is `clawhub:<slug>` or `skillhub:<slug>`. The model includes name/summary/author, statistics, tags, version, security status and installation state. SkillHub mirrors may be deduplicated into their ClawHub originals.
+Providers normalize ClawHub and SkillHub into `NormalizedSkill`. A market ID is `clawhub:<slug>` or `skillhub:<slug>`. The model includes name/summary/author, statistics, tags, category, version, security status and installation state. SkillHub mirrors may be deduplicated into their ClawHub originals.
+
+The home list is the curated catalogue (`docs/CATALOG.md`): a snapshot shipped in `lib/catalog/skills.json`, listed, categorised and searched locally with no upstream request. Its categories are the catalogue's own. Opening, previewing and installing a catalogue skill still read the owning registry; catalogue entries pin the ClawHub owner so an ambiguous slug resolves to the curated skill, and the detail overlays the catalogue's category, pick flag and Chinese summary on the live record. Live upstream listing and search remain available as the explicit `market` scope.
 
 `NormalizedSkillDetail` adds Markdown `description`, optional frontmatter/license, `files` and `totalSize`. File metadata includes relative path, byte size, language, optional hash/content type and `tooBig`. File previews include `content`, `size`, `language` and `truncated`.
 
@@ -83,10 +85,11 @@ All paths below are relative to `/api/skills-hub`.
 | --- | --- | --- |
 | GET | `/status` | `{ sources }` keyed by market source. |
 | GET | `/stats` | `{ stats }` cache counters: `hits`, `misses`, `staleServed`, `upstreamRequests`, `forcedRefreshes`. |
-| GET | `/skills?q=&source=&security=&installed=&cursor=&limit=&refresh=` | `{ items, nextCursor, sources }`. |
-| GET | `/skills/:source/:slug?refresh=` | `{ skill, sourceStatus }`. |
-| GET | `/skills/:source/:slug/file?path=…` | `{ file }`. |
-| POST | `/install`, JSON `{ id }` | `{ ok: true, installedPath, skill }`. |
+| GET | `/categories` | `{ items: MarketCategory[], status }`: catalogue categories with their skill counts; `status.fetchedAt` is the snapshot time. |
+| GET | `/skills?q=&scope=&category=&source=&security=&installed=&cursor=&limit=&refresh=` | `{ items, nextCursor, sources }`. |
+| GET | `/skills/:source/:slug?refresh=&owner=` | `{ skill, sourceStatus }`. |
+| GET | `/skills/:source/:slug/file?path=…&owner=` | `{ file }`. |
+| POST | `/install`, JSON `{ id, owner? }` | `{ ok: true, installedPath, skill }`. |
 | POST | `/uninstall`, JSON `{ id }` | `{ ok: true, removedPath, skill }`; market-managed installation only. |
 | GET | `/installed` | `{ items: InstalledSkillRecord[] }`; no provider request. |
 | GET | `/installed/detail?key=…` | `{ item, markdown, frontmatter, files }`; reads the selected local copy, its raw YAML header and its own file inventory. |
@@ -95,13 +98,15 @@ All paths below are relative to `/api/skills-hub`.
 
 `refresh` is `1`/`true` or `0`/`false` (absent means false); any other value is a `BAD_REQUEST`, because a refresh the Host cannot honour would let the panel present a cached answer as a fresh one. A refresh skips fresh cache entries for that request and rewrites them with what upstream returned.
 
-List `source` is `all`, `clawhub` or `skillhub`. `security` is `all`, `verified`, `benign`, `unknown` or `flagged`. `installed` is `all`, `installed` or `installable`; this filters the remote catalog and is distinct from the independent Installed view. `limit` is 1–100, defaulting to configured `pageSize`. Cursors are opaque and `null` means exhausted.
+ClawHub slugs are shared across authors, so `clawhub:<slug>` does not name one skill. `owner` (`[A-Za-z0-9][A-Za-z0-9_.-]{0,63}`; malformed is `BAD_REQUEST`) pins detail, file and install reads to the author of the card the reader opened; the panel sends it for every ClawHub card, list items carry it in `author.handle`, and the install sidecar records it so the installed view reopens the same skill. Without one, the Host uses the catalogue's pinned owner, then an owner it resolved earlier, and only then resolves a 409 `AMBIGUOUS_SKILL_SLUG` to the most-downloaded candidate — never the registry's first-listed match, which for popular slugs is routinely a later copy. Detail and file cache keys include the owner. An install whose detail resolves to a different author than requested is refused. A live search page shows one card per slug; a SkillHub mirror folds into a ClawHub original only when both name the same author.
+
+List `scope` is `catalog` (default) or `market`. With `catalog`, every filter runs on the snapshot before pagination and `sources` carry the snapshot time with `fromCache: true`; `refresh` has nothing to re-read. With `market`, the list is the live merged upstream feed described above and `category` is ignored. `category` is absent, `all`, or a category key (`[a-z0-9][a-z0-9-]{0,63}`). List `source` is `all`, `clawhub` or `skillhub`. `security` is `all`, `verified`, `benign`, `unknown` or `flagged`. `installed` is `all`, `installed` or `installable`; this filters the remote catalog and is distinct from the independent Installed view. `limit` is 1–100, defaulting to configured `pageSize`. Cursors are opaque and `null` means exhausted.
 
 ### 5.3 Interaction contract
 
 The marketplace shows skeleton cards on initial loading and a detail skeleton immediately after opening a card. An intersection observer inside the actual list scroll area loads the next page as the sentinel approaches view. It preserves loaded cards, deduplicates results and avoids concurrent duplicate loads. Pagination failures expose retry without discarding existing results.
 
-Search/filter changes cancel superseded requests, reset pagination and reject stale responses. Installed management has its own loading, empty, error, search and refresh states. Its local detail reads the exact selected entry, and removal requires a confirmation showing its path; symlink removals explain that the target is preserved. Successful mutations update the displayed list and installed state. Buttons expose disabled/pending state during mutations.
+A category bar above the filters shows the catalogue categories. A catalogue search offers to repeat the query across all markets (`scope=market`, labelled as not curated); clearing the query returns to the catalogue. Search/filter/category changes cancel superseded requests, reset pagination and reject stale responses. Installed management has its own loading, empty, error, search and refresh states. Its local detail reads the exact selected entry, and removal requires a confirmation showing its path; symlink removals explain that the target is preserved. Successful mutations update the displayed list and installed state. Buttons expose disabled/pending state during mutations.
 
 Both detail pages are full-panel views built on one shell (`SkillDetailShell`): the list is replaced, focus moves to the heading, and a back control returns to it. The market page keeps its tab and selected file in `MarketState`; the local page keeps them in its own state and never unmounts the inventory list, so the query and rows survive the round trip. The local page shows only what the filesystem proves — path, provenance, size, installed time, layout, the rendered SKILL.md and its own files — and omits market-only rows (author, downloads, security reports) rather than showing zeros. A skill with valid market provenance also offers "view in marketplace", which switches to the market section and opens its provider-backed page: upstream facts stay upstream, and the local page stays readable offline.
 

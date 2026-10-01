@@ -38,12 +38,13 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
   // ─── Subject under test ────────────────────────────────────────────────────
   const load = (name) => import(pathToFileURL(join(LIB, name)).href)
   const { configureProviderFetch, getProviderBase, MarketHttpError } = await load('provider-fetch.js')
-  const { clawhubProvider, resetClawhubOwnerCache } = await load('clawhub-provider.js')
+  const { clawhubProvider, resetClawhubOwnerCache, setClawhubOwnerHints } = await load('clawhub-provider.js')
   const { skillhubProvider } = await load('skillhub-provider.js')
   const { resetMarketCache, getSourceHealth, getMarketStats, marketCache } = await load('cache.js')
   const { installMarketSkill } = await load('install-service.js')
   const {
     listMarketSkills,
+    listMarketCategories,
     getMarketSkillDetail,
     getMarketFileContent,
     resolveMarketSkill,
@@ -53,6 +54,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     resetInstalledLookup,
   } = await load('market-service.js')
   const { MARKET_ERROR_CODES, MARKET_LIMITS, MARKET_SOURCES, MarketUpstreamError } = await load('types.js')
+  const { getCatalog } = await import(pathToFileURL(join(ROOT, 'lib', 'catalog', 'catalog.js')).href)
 
   // ─── Fixtures ──────────────────────────────────────────────────────────────
   const readFixture = async (name) => JSON.parse(await readFile(join(FIXTURES, name), 'utf8'))
@@ -132,6 +134,23 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
       if (upstream.switchConfigOnDetail) {
         upstream.switchConfigOnDetail = false
         configureProviderFetch({ clawhubBaseUrl: 'http://127.0.0.1:1' })
+      }
+      if (upstream.clawhubDetailMode === '409multi') {
+        // An early low-download copy listed first, the real skill second.
+        if (!query.has('owner')) {
+          return replyJson(res, 409, {
+            code: 'AMBIGUOUS_SKILL_SLUG',
+            slug: 'git',
+            matches: [{ ownerHandle: 'early-copy' }, { ownerHandle: 'ivangdavila' }],
+          })
+        }
+        if (query.get('owner') === 'early-copy') {
+          return replyJson(res, 200, {
+            skill: { slug: 'git', displayName: 'Git copy', stats: { downloads: 12 } },
+            owner: { handle: 'early-copy' },
+          })
+        }
+        if (query.get('owner') !== 'ivangdavila') return replyJson(res, 404, { error: 'no such owner' })
       }
       if (upstream.clawhubDetailMode === '409' && query.get('owner') !== 'pskoett') {
         return replyJson(res, 409, { code: 'AMBIGUOUS_SKILL_SLUG', slug: 'git', matches: [{ ownerHandle: 'pskoett' }] })
@@ -223,6 +242,9 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     requests.length = 0
     resetMarketCache()
     resetClawhubOwnerCache()
+    // The shipped catalogue pins real owners for real slugs (including `git`);
+    // the fixture-backed cases start without them.
+    setClawhubOwnerHints([])
     resetInstalledLookup()
     await t.test(name, fn)
   }
@@ -295,7 +317,8 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
 
     const mirror = page.items.find((item) => item.slug === 'pdf-to-word-docx')
     assert.deepEqual(mirror.tags, ['文档处理', 'PDF 处理']) // subCategories[].name → tags
-    assert.deepEqual(mirror.upstream, { source: 'clawhub', slug: 'pdf-to-word-docx' }) // from upstream_url
+    // from upstream_url: the ClawHub author travels with the slug
+    assert.deepEqual(mirror.upstream, { source: 'clawhub', slug: 'pdf-to-word-docx', owner: 'compdf-youna' })
     assert.equal(mirror.iconUrl, raw[2].iconUrl)
     assert.equal(mirror.stats.downloads, raw[2].downloads)
 
@@ -344,7 +367,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     assert.equal(skillhubPage.items[0].requiresApiKey, false)
     assert.equal(skillhubPage.items[1].requiresApiKey, true)
     // The mirrored entry is still recognizable as a ClawHub skill.
-    assert.deepEqual(skillhubPage.items[0].upstream, { source: 'clawhub', slug: 'video-transcript-pro' })
+    assert.deepEqual(skillhubPage.items[0].upstream, { source: 'clawhub', slug: 'video-transcript-pro', owner: 'artminding' })
   })
 
   await subtest('search(): the merged ClawHub result cap is enforced', async () => {
@@ -367,7 +390,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
       ],
     }
 
-    const capped = await listMarketSkills({ q: 'cap-test', source: 'all', security: 'all', installed: 'all', limit: 5 })
+    const capped = await listMarketSkills({ scope: 'market', q: 'cap-test', source: 'all', security: 'all', installed: 'all', limit: 5 })
     const clawhubItems = capped.items.filter((item) => item.source === 'clawhub')
     assert.equal(clawhubItems.length, MARKET_LIMITS.searchResultCap) // 50, not `limit`
     assert.ok(capped.items.some((item) => item.source === 'skillhub'))
@@ -381,7 +404,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     assert.equal(skillhubRequest?.query.keyword, 'cap-test')
 
     // ClawHub-only search: capped, and nothing further to load.
-    const clawhubOnly = await listMarketSkills({ q: 'cap-test', source: 'clawhub', security: 'all', installed: 'all', limit: 5 })
+    const clawhubOnly = await listMarketSkills({ scope: 'market', q: 'cap-test', source: 'clawhub', security: 'all', installed: 'all', limit: 5 })
     assert.equal(clawhubOnly.items.length, MARKET_LIMITS.searchResultCap)
     assert.equal(clawhubOnly.nextCursor, null)
   })
@@ -410,7 +433,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
       updated_at: 1_783_500_000_000,
     })
 
-    const merged = await listMarketSkills({ source: 'all', security: 'all', installed: 'all', limit: 20 })
+    const merged = await listMarketSkills({ scope: 'market', source: 'all', security: 'all', installed: 'all', limit: 20 })
 
     // The mirror is gone and the ClawHub original carries the link.
     assert.equal(merged.items.some((item) => item.id === 'skillhub:skill-vetter'), false)
@@ -443,12 +466,12 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     })
 
     // The security filter sees the merged status, not the pre-merge one.
-    const verified = await listMarketSkills({ source: 'all', security: 'verified', installed: 'all', limit: 20 })
+    const verified = await listMarketSkills({ scope: 'market', source: 'all', security: 'verified', installed: 'all', limit: 20 })
     assert.deepEqual(verified.items.map((item) => item.id), ['clawhub:skill-vetter'])
 
     // Dedupe copies its input: repeating the request (now from the cache) must not
     // append the same mirror to the original a second time.
-    const again = await listMarketSkills({ source: 'all', security: 'all', installed: 'all', limit: 20 })
+    const again = await listMarketSkills({ scope: 'market', source: 'all', security: 'all', installed: 'all', limit: 20 })
     assert.deepEqual(again.items.find((item) => item.id === 'clawhub:skill-vetter').mirrors, ['skillhub:skill-vetter'])
     assert.equal(again.items.length, merged.items.length)
   })
@@ -458,7 +481,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
   await subtest('installState/installedInfo come from the injected lookup; the default installs nothing', async () => {
     // No host lookup (the module default): everything is installable and no item
     // claims install metadata.
-    const initial = await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 10 })
+    const initial = await listMarketSkills({ scope: 'market', source: 'clawhub', security: 'all', installed: 'all', limit: 10 })
     assert.ok(initial.items.length > 0)
     assert.deepEqual([...new Set(initial.items.map((item) => item.installState))], ['installable'])
     assert.deepEqual(initial.items.map((item) => item.installedInfo), initial.items.map(() => undefined))
@@ -472,7 +495,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     })
 
     // …and the already-cached page is re-annotated: install state is never cached.
-    const annotated = await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 10 })
+    const annotated = await listMarketSkills({ scope: 'market', source: 'clawhub', security: 'all', installed: 'all', limit: 10 })
     const installed = annotated.items.find((item) => item.id === 'clawhub:skill-vetter')
     assert.equal(installed.installState, 'installed')
     assert.deepEqual(installed.installedInfo, {
@@ -482,14 +505,14 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     })
     assert.equal(annotated.items.filter((item) => item.installState === 'installed').length, 1)
 
-    const onlyInstalled = await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'installed', limit: 10 })
+    const onlyInstalled = await listMarketSkills({ scope: 'market', source: 'clawhub', security: 'all', installed: 'installed', limit: 10 })
     assert.deepEqual(onlyInstalled.items.map((item) => item.id), ['clawhub:skill-vetter'])
-    const onlyInstallable = await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'installable', limit: 10 })
+    const onlyInstallable = await listMarketSkills({ scope: 'market', source: 'clawhub', security: 'all', installed: 'installable', limit: 10 })
     assert.equal(onlyInstallable.items.some((item) => item.id === 'clawhub:skill-vetter'), false)
 
     // `info()` may legitimately miss an entry; the sanitized slug is the fallback.
     setInstalledLookup({ has: (id) => id === 'clawhub:self-improving-agent', info: () => undefined })
-    const fallback = await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 3 })
+    const fallback = await listMarketSkills({ scope: 'market', source: 'clawhub', security: 'all', installed: 'all', limit: 3 })
     const fallbackItem = fallback.items.find((item) => item.id === 'clawhub:self-improving-agent')
     assert.equal(fallbackItem.installState, 'installed')
     assert.deepEqual(fallbackItem.installedInfo, {
@@ -503,7 +526,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
 
   await subtest('later pages: a source missing from the cursor is exhausted', async () => {
     const cursor = Buffer.from(JSON.stringify({ skillhub: '2' }), 'utf8').toString('base64url')
-    const page = await listMarketSkills({ source: 'all', security: 'all', installed: 'all', limit: 5, cursor })
+    const page = await listMarketSkills({ scope: 'market', source: 'all', security: 'all', installed: 'all', limit: 5, cursor })
 
     // A cursor without a clawhub token means clawhub has nothing left.
     assert.equal(page.items.every((item) => item.source === 'skillhub'), true)
@@ -561,14 +584,21 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
 
     // Scan status comes from the version payload: "clean" → benign.
     assert.equal(skill.securityStatus, 'benign')
-    assert.deepEqual(skill.securityReports, [
-      {
-        vendor: 'clawhub-scan',
-        status: 'clean',
-        statusText: 'Clean (with warnings)', // hasWarnings true in the fixture
-        reportUrl: rawVersion.security.virustotalUrl,
-      },
+    const [overall, ...scanners] = skill.securityReports
+    assert.deepEqual(overall, {
+      vendor: 'clawhub-scan',
+      status: 'clean',
+      statusText: 'Clean (with warnings)', // hasWarnings true in the fixture
+      reportUrl: rawVersion.security.virustotalUrl,
+    })
+    // Each scanner keeps its own verdict, so the reader sees which one objected.
+    assert.deepEqual(scanners.map((report) => [report.vendor, report.status]), [
+      ['VirusTotal', 'clean'],
+      ['skillspector', 'suspicious'],
+      ['LLM review', 'clean'],
     ])
+    assert.equal(scanners[1].statusText, 'suspicious · CAUTION')
+    assert.match(scanners[2].summary, /Git reference skill/)
     assert.equal(skill.installState, 'installable')
 
     // The second call is served from the detail cache without touching the stub.
@@ -620,18 +650,18 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
   await subtest('a forced list refresh re-reads upstream; an unforced one reuses the page', async () => {
     resetMarketCache()
     requests.length = 0
-    await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 3 })
+    await listMarketSkills({ scope: 'market', source: 'clawhub', security: 'all', installed: 'all', limit: 3 })
     const pageRequests = requests.length
     assert.ok(pageRequests > 0)
 
     requests.length = 0
-    const cachedPage = await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 3 })
+    const cachedPage = await listMarketSkills({ scope: 'market', source: 'clawhub', security: 'all', installed: 'all', limit: 3 })
     assert.deepEqual(requests, [])
     assert.equal(cachedPage.sources.clawhub.fromCache, true)
     assert.equal(typeof cachedPage.sources.clawhub.fetchedAt, 'number')
 
     requests.length = 0
-    const refreshed = await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 3, refresh: true })
+    const refreshed = await listMarketSkills({ scope: 'market', source: 'clawhub', security: 'all', installed: 'all', limit: 3, refresh: true })
     assert.equal(requests.length, pageRequests)
     assert.equal(refreshed.sources.clawhub.fromCache, false)
 
@@ -640,7 +670,7 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     // claimed as a cache saving. Written as an assertion so a later change
     // cannot quietly "fix" it.
     requests.length = 0
-    await listMarketSkills({ source: 'clawhub', security: 'all', installed: 'all', limit: 3, cursor: refreshed.nextCursor ?? undefined })
+    await listMarketSkills({ scope: 'market', source: 'clawhub', security: 'all', installed: 'all', limit: 3, cursor: refreshed.nextCursor ?? undefined })
     assert.equal(requests.length, pageRequests)
   })
 
@@ -996,10 +1026,11 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     const detail = await clawhubProvider.detail('git')
     assert.equal(detail.slug, 'git')
 
-    // First request is ambiguous; the retry carries the owner hint from `matches`,
-    // and the version request inherits it.
+    // First request is ambiguous; each candidate is probed, the winner's read is
+    // retried with its owner, and the version request inherits it.
     assert.deepEqual(requests.map((entry) => [entry.path, entry.query.owner]), [
       ['/api/v1/skills/git', undefined],
+      ['/api/v1/skills/git', 'pskoett'],
       ['/api/v1/skills/git', 'pskoett'],
       ['/api/v1/skills/git/versions/1.0.8', 'pskoett'],
     ])
@@ -1049,4 +1080,124 @@ test('market provider layer (hermetic, fixture-backed)', { skip: built ? false :
     assert.equal(getProviderBase('clawhub'), origin)
     assert.equal(getProviderBase('skillhub'), origin)
   })
+
+  await subtest('catalogue: the home list is the shipped snapshot, with no upstream request', async () => {
+    const catalog = getCatalog()
+    assert.ok(catalog.skills.length >= 300, `catalogue holds ${catalog.skills.length} skills`)
+    const base = { source: 'all', security: 'all', installed: 'all', limit: 24 }
+    const first = await listMarketSkills(base)
+    assert.equal(requests.length, 0, 'the catalogue must not touch upstream')
+    assert.equal(first.items.length, 24)
+    assert.equal(first.sources.clawhub.fetchedAt, catalog.generatedAt)
+    assert.equal(first.sources.clawhub.fromCache, true)
+
+    // Paging walks the whole list exactly once.
+    const ids = new Set(first.items.map((item) => item.id))
+    let cursor = first.nextCursor
+    while (cursor) {
+      const page = await listMarketSkills({ ...base, cursor })
+      for (const item of page.items) {
+        assert.equal(ids.has(item.id), false, `duplicate ${item.id}`)
+        ids.add(item.id)
+      }
+      cursor = page.nextCursor
+    }
+    assert.equal(ids.size, catalog.skills.length)
+  })
+
+  await subtest('catalogue: categories, category filter and local search', async () => {
+    const { items } = listMarketCategories()
+    assert.ok(items.length >= 8)
+    const total = items.reduce((sum, item) => sum + item.count, 0)
+    assert.equal(total, getCatalog().skills.length, 'every skill sits in exactly one listed category')
+
+    const [category] = items
+    const view = await listMarketSkills({ category: category.key, source: 'all', security: 'all', installed: 'all', limit: 100 })
+    assert.equal(view.items.length, Math.min(100, category.count))
+    assert.equal(view.items.every((item) => item.category === category.key), true)
+
+    const target = getCatalog().skills.find((entry) => entry.source === 'clawhub')
+    const hits = await listMarketSkills({ q: target.slug.toUpperCase(), source: 'all', security: 'all', installed: 'all', limit: 24 })
+    assert.equal(hits.items[0].id, `clawhub:${target.slug}`, 'a name/slug hit ranks first')
+    assert.equal(requests.length, 0)
+  })
+
+  await subtest('catalogue: every entry is addressable and consistently shaped', async () => {
+    const catalog = getCatalog()
+    const keys = new Set(catalog.categories.map((category) => category.key))
+    const ids = new Set()
+    for (const entry of catalog.skills) {
+      const id = `${entry.source}:${entry.slug}`
+      assert.equal(ids.has(id), false, `duplicate ${id}`)
+      ids.add(id)
+      assert.ok(MARKET_SOURCES.includes(entry.source), id)
+      assert.ok(keys.has(entry.category), `${id} has unknown category ${entry.category}`)
+      assert.ok(typeof entry.owner === 'string' && entry.owner !== '', `${id} needs an owner`)
+      assert.ok(typeof entry.summary === 'string' && entry.summary.length >= 8, `${id} needs a summary`)
+      assert.ok(['verified', 'benign', 'unknown', 'flagged'].includes(entry.security), id)
+      if (entry.security === 'flagged') assert.ok(entry.securityNote, `${id} is flagged without a reason`)
+    }
+  })
+
+  await subtest('market scope: an explicit live search still reaches both registries', async () => {
+    await listMarketSkills({ scope: 'market', q: 'git', source: 'all', security: 'all', installed: 'all', limit: 24 })
+    assert.equal(requestsFor('/api/v1/search').length, 1)
+    assert.equal(requestsFor('/api/skills').length, 1)
+  })
+
+
+  await subtest('clawhub: a catalogue owner hint wins over the 409 first match', async () => {
+    upstream.clawhubDetailMode = '409'
+    setClawhubOwnerHints([['git', 'pskoett']])
+    await getMarketSkillDetail('clawhub', 'git')
+    const calls = requestsFor('/api/v1/skills/git')
+    assert.equal(calls.length, 1, 'the pinned owner is sent up front, no 409 round trip')
+    assert.equal(calls[0].query.owner, 'pskoett')
+  })
+
+
+  await subtest('clawhub: an ambiguous slug without an owner resolves to the most-downloaded candidate', async () => {
+    upstream.clawhubDetailMode = '409multi'
+    const detail = await clawhubProvider.detail('git')
+    assert.equal(detail.author.handle, 'ivangdavila', 'not the first-listed copy')
+    const probes = requestsFor('/api/v1/skills/git').map((entry) => entry.query.owner ?? null)
+    assert.deepEqual(probes.slice(0, 3).sort(), ['early-copy', 'ivangdavila', null].sort())
+  })
+
+  await subtest('clawhub: a requested owner pins detail, files and cache keys', async () => {
+    upstream.clawhubDetailMode = '409multi'
+    const copy = await getMarketSkillDetail('clawhub', 'git', { owner: 'early-copy' })
+    assert.equal(copy.skill.author.handle, 'early-copy')
+    const real = await getMarketSkillDetail('clawhub', 'git', { owner: 'ivangdavila' })
+    assert.equal(real.skill.author.handle, 'ivangdavila', 'one author\'s snapshot is never served for another')
+    assert.equal(real.sourceStatus.fromCache, false)
+    // No 409 round trip when the owner is known up front.
+    assert.equal(requestsFor('/api/v1/skills/git').every((entry) => entry.query.owner), true)
+
+    requests.length = 0
+    await getMarketFileContent('clawhub', 'git', 'SKILL.md', 'ivangdavila')
+    assert.equal(requestsFor('/api/v1/skills/git/file')[0].query.owner, 'ivangdavila')
+  })
+
+  await subtest('clawhub search: one card per slug, carrying its author', async () => {
+    const first = fixtures.clawhubSearch.results[0]
+    upstream.clawhubSearchPayload = {
+      results: [first, { ...first, ownerHandle: 'early-copy', owner: { handle: 'early-copy' }, downloads: 3 }],
+    }
+    const page = await clawhubProvider.search({ q: 'git', limit: 10 })
+    assert.equal(page.items.length, 1)
+    assert.equal(page.items[0].author.handle, first.ownerHandle)
+  })
+
+  await subtest('dedupe: a SkillHub mirror of another author does not fold into the original', async () => {
+    const { dedupeSkills } = await load('market-service.js')
+    const original = { id: 'clawhub:git', source: 'clawhub', slug: 'git', author: { handle: 'ivangdavila' }, tags: [], securityStatus: 'unknown' }
+    const copyMirror = { id: 'skillhub:git', source: 'skillhub', slug: 'git', author: { handle: 'x' }, tags: ['Git'], securityStatus: 'benign', upstream: { source: 'clawhub', slug: 'git', owner: 'early-copy' } }
+    const realMirror = { ...copyMirror, id: 'skillhub:git-real', upstream: { source: 'clawhub', slug: 'git', owner: 'ivangdavila' } }
+    assert.deepEqual(dedupeSkills([original, copyMirror]).map((item) => item.id), ['clawhub:git', 'skillhub:git'])
+    const merged = dedupeSkills([original, realMirror])
+    assert.deepEqual(merged.map((item) => item.id), ['clawhub:git'])
+    assert.deepEqual(merged[0].mirrors, ['skillhub:git-real'])
+  })
+
 })
