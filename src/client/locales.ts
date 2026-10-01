@@ -63,7 +63,7 @@ const zhDictionary = {
   panel: '技能市场',
   title: '技能市场',
   subtitle: '浏览、预览并安装来自 ClawHub 与 SkillHub 的第三方技能。',
-  searchPlaceholder: '搜索技能名称、作者或关键词',
+  searchPlaceholder: '搜索技能名称、作者或关键词，按 Enter 搜索',
   clearSearch: '清除搜索',
 
   'source.all': '全部来源',
@@ -200,7 +200,7 @@ export const en: Record<keyof typeof zhDictionary, string> = {
   panel: 'Skills Hub',
   title: 'Skills Hub',
   subtitle: 'Browse, preview and install third-party skills from ClawHub and SkillHub.',
-  searchPlaceholder: 'Search skills by name, author or keyword',
+  searchPlaceholder: 'Search skills by name, author or keyword, press Enter',
   clearSearch: 'Clear search',
 
   'source.all': 'All sources',
