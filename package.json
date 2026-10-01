@@ -1,6 +1,6 @@
 {
   "name": "@nanmicoder/dsh-skills-hub",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Skills Hub for DeepSeek Harness: browse, preview, install and remove third-party skills from ClawHub and SkillHub inside the DSH Web GUI.",
   "type": "module",
   "main": "lib/index.js",

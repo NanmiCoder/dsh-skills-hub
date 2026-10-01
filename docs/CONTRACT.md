@@ -1,10 +1,10 @@
-# Skills Hub 0.0.2 implementation contract
+# Skills Hub 0.0.3 implementation contract
 
 This document describes the shipped code, not a migration plan. The TypeScript models in `src/market/types.ts`, `src/skills/installed.ts` and `src/client/api.ts` define the detailed wire shapes. Update this document with API changes.
 
 ## 1. Package and host
 
-The package is `@nanmicoder/dsh-skills-hub`, version `0.0.2`. Its supported host package cohort is exactly `0.2.0-rc.2`; the desktop release line is 0.2.0. The exact upstream tag and commit are recorded in `compatibility.json` and [COMPATIBILITY.md](COMPATIBILITY.md).
+The package is `@nanmicoder/dsh-skills-hub`, version `0.0.3`. Its supported host package cohort is exactly `0.2.0-rc.2`; the desktop release line is 0.2.0. The exact upstream tag and commit are recorded in `compatibility.json` and [COMPATIBILITY.md](COMPATIBILITY.md).
 
 `cordis.patch.yml` inserts one row (`id: skills-hub`) named after the scoped package. `lib/index.js` is the host entry. `lib/client.js` is the browser factory registered with `window.__ModuleLoader__.load` under that same package name. The plugin adds a global sidebar panel and does not replace built-in components or require an agent session.
 

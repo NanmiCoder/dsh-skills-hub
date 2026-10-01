@@ -15,7 +15,7 @@ Commit regenerated `lib/` with source changes because Git installations consume 
 For CLI users and local development, install a specific published version:
 
 ```sh
-dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.2
+dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.3
 ```
 
 Replace `desktop` with the target profile. To test a local source build:
@@ -23,7 +23,7 @@ Replace `desktop` with the target profile. To test a local source build:
 ```sh
 pnpm install --frozen-lockfile
 pnpm pack --pack-destination artifacts
-dsh plugin --profile desktop add ./artifacts/nanmicoder-dsh-skills-hub-0.0.2.tgz
+dsh plugin --profile desktop add ./artifacts/nanmicoder-dsh-skills-hub-0.0.3.tgz
 ```
 
 Fully quit and reopen the target Harness instance after a CLI install. Advanced configuration is documented in [CONFIGURATION.md](./docs/CONFIGURATION.md).
