@@ -7,7 +7,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -22,6 +22,8 @@
 .searchInput {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 40px;
+  border-radius: 10px;
 }
 
 .clear {
@@ -34,16 +36,20 @@
   align-items: center;
   gap: 6px;
   box-sizing: border-box;
-  height: 32px;
-  padding: 0 6px 0 10px;
-  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
-  border-radius: var(--dsw-radius-sm, 8px);
+  height: 40px;
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2, #e4e6eb);
+  border-radius: 10px;
   background: var(--dsw-alias-bg-layer-1, #ffffff);
   cursor: pointer;
 }
 
+.field:hover {
+  border-color: var(--dsw-alias-border-l3, #c9ccd4);
+}
+
 .field:focus-within {
-  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+  border-color: var(--dsw-alias-label-primary, #12141a);
 }
 
 .fieldLabel {

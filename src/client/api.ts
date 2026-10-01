@@ -11,6 +11,7 @@
  */
 
 import type {
+  MarketCategoriesResult,
   MarketFileContent,
   MarketListResult,
   MarketSource,
@@ -48,6 +49,8 @@ export interface InstalledSkillRecord {
   id: string
   source: MarketSource | 'local'
   slug: string
+  /** Registry author recorded at install time, when known. */
+  owner?: string
   name: string
   dirName: string
   dirPath: string
@@ -63,6 +66,10 @@ export interface InstalledSkillRecord {
 /** List query accepted by `GET /api/skills-hub/skills`. */
 export interface MarketQuery {
   q?: string
+  /** `catalog` (default): the curated list. `market`: live upstream search. */
+  scope?: 'catalog' | 'market'
+  /** Catalogue category key; `'all'` (or absent) means no category filter. */
+  category?: string
   source: 'all' | MarketSource
   security: 'all' | SecurityStatus
   installed: 'all' | 'installed' | 'installable'
@@ -197,6 +204,8 @@ export async function fetchMarketList(
   const search = new URLSearchParams()
   const q = query.q?.trim()
   if (q) search.set('q', q)
+  if (query.scope === 'market') search.set('scope', 'market')
+  else if (query.category && query.category !== 'all') search.set('category', query.category)
   // `all` is the route's default; omitting it keeps the URL (and cache keys) canonical.
   if (query.source !== 'all') search.set('source', query.source)
   if (query.security !== 'all') search.set('security', query.security)
@@ -210,14 +219,23 @@ export async function fetchMarketList(
   return getJson<MarketListResult>(`/skills${suffix === '' ? '' : `?${suffix}`}`, signal)
 }
 
+/** The category bar's entries (curated catalogue), with the snapshot's provenance. */
+export async function fetchMarketCategories(signal?: AbortSignal): Promise<MarketCategoriesResult> {
+  return getJson<MarketCategoriesResult>('/categories', signal)
+}
+
 /** One skill's full detail plus the health of the source that served it. */
 export async function fetchSkillDetail(
   id: string,
   signal?: AbortSignal,
-  options: { refresh?: boolean } = {},
+  options: { refresh?: boolean; owner?: string } = {},
 ): Promise<{ skill: NormalizedSkillDetail; sourceStatus: SourceStatusInfo }> {
   const { source, slug } = parseMarketId(id)
-  const suffix = options.refresh === true ? '?refresh=1' : ''
+  const search = new URLSearchParams()
+  if (options.refresh === true) search.set('refresh', '1')
+  // ClawHub slugs are shared across authors: name the one the card showed.
+  if (options.owner) search.set('owner', options.owner)
+  const suffix = search.size > 0 ? `?${search.toString()}` : ''
   return getJson<{ skill: NormalizedSkillDetail; sourceStatus: SourceStatusInfo }>(
     `/skills/${source}/${encodeURIComponent(slug)}${suffix}`,
     signal,
@@ -229,10 +247,12 @@ export async function fetchSkillFile(
   id: string,
   path: string,
   signal?: AbortSignal,
+  owner?: string,
 ): Promise<MarketFileContent> {
   const { source, slug } = parseMarketId(id)
+  const ownerParam = owner ? `&owner=${encodeURIComponent(owner)}` : ''
   const payload = await getJson<{ file: MarketFileContent }>(
-    `/skills/${source}/${encodeURIComponent(slug)}/file?path=${encodeURIComponent(path)}`,
+    `/skills/${source}/${encodeURIComponent(slug)}/file?path=${encodeURIComponent(path)}${ownerParam}`,
     signal,
   )
   return payload.file
@@ -255,8 +275,11 @@ export async function fetchInstalled(signal?: AbortSignal): Promise<InstalledSki
 }
 
 /** Install a market skill into the local skills directory. */
-export async function installSkill(id: string): Promise<{ installedPath: string; skill: NormalizedSkill }> {
-  const payload = await postJson<{ ok: boolean; installedPath: string; skill: NormalizedSkill }>('/install', { id })
+export async function installSkill(id: string, owner?: string): Promise<{ installedPath: string; skill: NormalizedSkill }> {
+  const payload = await postJson<{ ok: boolean; installedPath: string; skill: NormalizedSkill }>(
+    '/install',
+    owner ? { id, owner } : { id },
+  )
   return { installedPath: payload.installedPath, skill: payload.skill }
 }
 

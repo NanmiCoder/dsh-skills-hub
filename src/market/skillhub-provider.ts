@@ -33,7 +33,7 @@ import {
 } from './types.ts'
 // The frontmatter parser is shared with the ClawHub provider: both sources hand
 // us a raw SKILL.md and the detail contract promises a frontmatter-free body.
-import { parseFrontmatter } from './clawhub-provider.ts'
+import { meaningfulChangelog, parseFrontmatter } from './clawhub-provider.ts'
 import { markSourceHealth } from './cache.ts'
 
 type SkillhubListItem = {
@@ -71,7 +71,7 @@ type SkillhubSecurityReports = Record<
 type SkillhubDetail = {
   skill?: SkillhubListItem & { stats?: { downloads?: number; installs?: number; stars?: number } }
   owner?: { handle?: string; displayName?: string; image?: string | null }
-  latestVersion?: { version?: string; changelog?: string }
+  latestVersion?: { version?: string; changelog?: string; createdAt?: number }
   securityReports?: SkillhubSecurityReports
 }
 
@@ -150,7 +150,8 @@ function parseUpstream(item: SkillhubListItem): NormalizedSkill['upstream'] {
   try {
     const segments = new URL(upstreamUrl).pathname.split('/').filter(Boolean)
     const slug = segments[segments.length - 1]
-    if (slug) return { source: 'clawhub', slug }
+    const owner = segments.length > 1 ? segments[segments.length - 2] : undefined
+    if (slug) return { source: 'clawhub', slug, ...(owner ? { owner } : {}) }
   } catch {
     // Malformed upstream URL — treat as a native entry.
   }
@@ -285,6 +286,7 @@ export const skillhubProvider: MarketProvider = {
       data.skill.verified === undefined ? undefined : Boolean(data.skill.verified),
     )
     const version = asString(data.latestVersion?.version) || item.version
+    const changelog = meaningfulChangelog(data.latestVersion?.changelog)
 
     let files: ProviderFileEntry[] = []
     try {
@@ -327,6 +329,8 @@ export const skillhubProvider: MarketProvider = {
       },
       securityStatus: security.status,
       securityReports: security.reports.length ? security.reports : undefined,
+      ...(changelog ? { changelog: { version, text: changelog, publishedAt: asNumber(data.latestVersion?.createdAt) } } : {}),
+      pageUrl: `https://skillhub.cn/skills/${encodeURIComponent(slug)}`,
       description,
       ...(descriptionFrontmatter ? { descriptionFrontmatter } : {}),
       files: files.map((file) => ({

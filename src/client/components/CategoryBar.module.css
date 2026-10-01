@@ -1,0 +1,58 @@
+/* Category chips. They wrap rather than scroll: a hidden horizontal overflow
+   would hide categories from a reader who never thinks to scroll sideways. */
+
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chip {
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-secondary, #4a4f5c);
+  font: inherit;
+  font-size: 13px;
+  line-height: 30px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--dsw-alias-border-l3, #00000033);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4176e6);
+  outline-offset: 1px;
+}
+
+.chip[aria-checked='true'] {
+  border-color: var(--dsw-alias-label-primary, #1a1c1f);
+  background: var(--dsw-alias-label-primary, #1a1c1f);
+  color: var(--dsw-alias-bg-layer-1, #ffffff);
+}
+
+.chip:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.count {
+  margin-left: 5px;
+  font-size: 11px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}

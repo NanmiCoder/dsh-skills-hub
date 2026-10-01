@@ -29,6 +29,8 @@ export type SecurityReport = {
   status: string
   statusText: string
   reportUrl?: string
+  /** The scanner's own explanation of its verdict, when it gives one */
+  summary?: string
 }
 
 export type NormalizedSkill = {
@@ -41,7 +43,10 @@ export type NormalizedSkill = {
   author: { handle: string; displayName?: string; avatarUrl?: string }
   stats: { downloads: number; installs?: number; stars?: number }
   tags: string[]
+  /** Curated-catalogue category key, e.g. `dev` (absent for live upstream results) */
   category?: string
+  /** Editor's pick in the curated catalogue */
+  featured?: boolean
   version?: string
   updatedAt?: number
   iconUrl?: string
@@ -50,7 +55,7 @@ export type NormalizedSkill = {
   requiresApiKey?: boolean
   verified?: boolean
   /** Set on SkillHub entries that mirror a ClawHub skill */
-  upstream?: { source: MarketSource; slug: string }
+  upstream?: { source: MarketSource; slug: string; owner?: string }
   /** After dedupe: ids of merged duplicate entries from other sources */
   mirrors?: string[]
   installState: InstallState
@@ -76,6 +81,10 @@ export type NormalizedSkillDetail = NormalizedSkill & {
   license?: string
   files: MarketFileMeta[]
   totalSize: number
+  /** Release note of the latest version, when upstream has a meaningful one */
+  changelog?: { version?: string; text: string; publishedAt?: number }
+  /** The skill's page on its registry (http(s) only) */
+  pageUrl?: string
 }
 
 export type MarketFileContent = {
@@ -93,9 +102,26 @@ export type SourceStatusInfo = {
   error?: string
 }
 
+/** One curated-catalogue category. */
+export type MarketCategory = {
+  key: string
+  name: string
+  nameEn?: string
+  sortOrder: number
+  /** Skills the catalogue holds in this category */
+  count?: number
+}
+
+export type MarketCategoriesResult = {
+  items: MarketCategory[]
+  status: SourceStatusInfo
+}
+
 export type MarketListResult = {
   items: NormalizedSkill[]
   nextCursor: string | null
+  /** Matching skills in total, when known (the curated catalogue always knows) */
+  total?: number
   sources: Record<MarketSource, SourceStatusInfo>
 }
 

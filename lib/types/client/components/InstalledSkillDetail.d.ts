@@ -20,5 +20,5 @@ export declare function InstalledSkillDetail(props: {
     onBack: () => void;
     onUninstall: (item: InstalledSkillRecord) => void;
     /** Open the same skill's market page; only offered for market provenance. */
-    onOpenMarket: (id: string) => void;
+    onOpenMarket: (id: string, owner?: string) => void;
 }): JSX.Element;

@@ -1,0 +1,254 @@
+/* Market-only pieces of the detail page; the page itself is `SkillDetailShell`. */
+
+/* "Before installing, know what this skill does" */
+.capabilities {
+  padding: 20px 22px;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #b25e00) 26%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--dsw-alias-state-warn-primary, #b25e00) 5%, var(--dsw-alias-bg-layer-1, #ffffff));
+}
+
+.capHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.capTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--dsw-alias-label-primary, #12141a);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.capGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.capTitle svg {
+  color: var(--dsw-alias-state-warn-primary, #b25e00);
+}
+
+.capCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-state-warn-primary, #b25e00) 26%, transparent);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+}
+
+.capCard strong {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 19px;
+}
+
+.capCard span {
+  color: var(--dsw-alias-label-secondary, #4a4f5c);
+  font-family: var(--dsw-font-mono, ui-monospace, 'SF Mono', Menlo, monospace);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.capLink {
+  color: var(--dsw-alias-state-warn-label, #8a4b00);
+}
+
+.capNote {
+  margin: 12px 0 0;
+  color: var(--dsw-alias-label-tertiary, #6b7080);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* SKILL.md document card */
+.docHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #eef0f3);
+  color: var(--dsw-alias-label-tertiary, #6b7080);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.docBody {
+  position: relative;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.docCollapsed {
+  max-height: 720px;
+  overflow: hidden;
+}
+
+.docCollapsed::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 96px;
+  background: linear-gradient(to bottom, transparent, var(--dsw-alias-bg-layer-1, #ffffff));
+  pointer-events: none;
+}
+
+.expand {
+  margin-top: 16px;
+  padding: 8px 16px;
+  border: 1px solid var(--dsw-alias-border-l2, #e4e6eb);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #12141a);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.expand:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #2f49d1);
+  outline-offset: 2px;
+}
+
+.expand:hover {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary, #12141a) 6%, transparent);
+}
+
+.frontmatter {
+  margin-top: 20px;
+}
+
+/* Side rail */
+.triggers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.triggers li {
+  display: flex;
+  gap: 10px;
+  color: var(--dsw-alias-label-primary, #12141a);
+}
+
+.triggerIndex {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--dsw-alias-label-primary, #12141a) 6%, transparent);
+  color: var(--dsw-alias-label-secondary, #4a4f5c);
+  font-family: var(--dsw-font-mono, ui-monospace, 'SF Mono', Menlo, monospace);
+  font-size: 11px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.changelogText {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary, #4a4f5c);
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* Security tab */
+.reports {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report {
+  padding: 14px 0;
+  border-top: 1px solid var(--dsw-alias-border-l1, #eef0f3);
+}
+
+.report:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.reportHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+
+.reportVendor {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.reportSummary {
+  margin: 8px 0 0;
+  color: var(--dsw-alias-label-secondary, #4a4f5c);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.report > a {
+  margin-top: 6px;
+}
+
+/* Changelog tab */
+.release {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.releaseHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Code in the SKILL.md document reads as a terminal, as in the design. */
+.linkRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin-top: 16px;
+}
+
+.linkRow > a {
+  margin-top: 0;
+}
+
+.linkRow > button {
+  color: var(--dsw-alias-state-business-primary, #2f49d1);
+}

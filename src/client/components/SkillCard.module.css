@@ -1,30 +1,32 @@
-/* Catalogue card. Fixed structure top to bottom — head, clamped summary,
-   tags, footer pinned with `margin-top: auto` — so a grid row of cards lines
-   up even when one has no tags. `min-width: 0` on every text carrier is what
-   keeps long skill names truncating instead of widening the grid track. */
+/* Catalogue card, in the detail page's language: white card, 14px radius,
+   avatar + name + mono version, two-line summary, chips, and a footer with
+   mono counts and the black install button. Fixed structure top to bottom
+   with the footer pinned by `margin-top: auto`, so a grid row lines up even
+   when one card has no tags. `min-width: 0` on every text carrier keeps long
+   names truncating instead of widening the grid track. */
 
 .card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
-  min-height: 188px;
+  min-height: 200px;
   box-sizing: border-box;
-  padding: 14px;
-  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
-  border-radius: var(--dsw-radius-md, 12px);
+  padding: 18px 18px 16px;
+  border: 1px solid var(--dsw-alias-border-l2, #e4e6eb);
+  border-radius: 14px;
   background: var(--dsw-alias-bg-layer-1, #ffffff);
-  transition: border-color 140ms ease, background-color 140ms ease;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .card:hover {
-  border-color: var(--dsw-alias-border-l3, #00000029);
-  background: var(--dsw-alias-interactive-bg-hover, #2631480f);
+  border-color: var(--dsw-alias-border-l3, #c9ccd4);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--dsw-alias-label-primary, #12141a) 7%, transparent);
 }
 
 .card:focus-within {
-  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+  border-color: var(--dsw-alias-label-primary, #12141a);
 }
 
 /* Stretched hit area: covers the card, sits under the content. */
@@ -41,7 +43,7 @@
 }
 
 .open:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary, #4176e6);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #2f49d1);
   outline-offset: 2px;
 }
 
@@ -68,139 +70,147 @@
 
 .titleRow {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
 .title {
-  flex: 1;
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-primary, #0f1115);
+  color: var(--dsw-alias-label-primary, #12141a);
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 22px;
-  letter-spacing: -0.01em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .version {
   flex: none;
-  color: var(--dsw-alias-label-tertiary, #81858c);
-  font-size: 11.5px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  padding: 0 6px;
+  border: 1px solid var(--dsw-alias-border-l2, #e4e6eb);
+  border-radius: 5px;
+  color: var(--dsw-alias-label-secondary, #4a4f5c);
+  font-family: var(--dsw-font-mono, ui-monospace, Menlo, monospace);
+  font-size: 11px;
+  line-height: 17px;
 }
 
 .origin {
   display: flex;
   align-items: center;
-  gap: 6px;
   min-width: 0;
   margin: 2px 0 0;
-  font-size: 11px;
-  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary, #6b7080);
+  font-size: 12px;
+  line-height: 18px;
 }
 
-.source {
-  flex: none;
-  color: var(--dsw-alias-label-tertiary, #81858c);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.origin > span + span::before {
+  content: '·';
+  margin: 0 6px;
 }
 
 .author {
   min-width: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-secondary, #61666b);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .summary {
-  /* Three visible lines, two reserved: short summaries keep their row compact
-     while a long one still has somewhere to go before it clips. */
   display: -webkit-box;
   min-height: 42px;
   margin: 0;
   overflow: hidden;
-  color: var(--dsw-alias-label-secondary, #61666b);
+  color: var(--dsw-alias-label-secondary, #4a4f5c);
   font-size: 13px;
   line-height: 21px;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
 }
 
 .tags {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  min-height: 18px;
-  margin: 0;
-  color: var(--dsw-alias-label-tertiary, #81858c);
-  font-size: 12px;
-  line-height: 18px;
-}
-
-.tagIcon {
-  flex: none;
-  color: var(--dsw-alias-label-tertiary, #81858c);
-}
-
-.tag {
-  max-width: 100%;
+  gap: 6px;
+  min-width: 0;
+  max-height: 24px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .footer {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
   margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid var(--dsw-alias-border-l1, #0000000a);
-}
-
-.badges {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--dsw-alias-border-l1, #eef0f3);
 }
 
 .stats {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin-left: auto;
-  color: var(--dsw-alias-label-secondary, #61666b);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  line-height: 18px;
+  gap: 14px;
+  min-width: 0;
 }
 
 .stat {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  white-space: nowrap;
+  gap: 5px;
+  color: var(--dsw-alias-label-secondary, #4a4f5c);
+  font-family: var(--dsw-font-mono, ui-monospace, Menlo, monospace);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* The card body is inert so the stretched button owns the click; the one real
-   control inside has to opt back into hit testing. */
 .install {
-  position: relative;
-  z-index: 2;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--dsw-alias-label-primary, #12141a);
+  color: var(--dsw-alias-bg-layer-1, #ffffff);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
   pointer-events: auto;
+}
+
+.install:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.install:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.install:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #2f49d1);
+  outline-offset: 2px;
+}
+
+.installed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--dsw-alias-state-success-primary, #1b6b45);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.unavailable {
+  color: var(--dsw-alias-label-tertiary, #6b7080);
+  font-size: 12px;
 }

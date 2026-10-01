@@ -56,6 +56,7 @@ export declare class MarketInstallError extends Error {
 export declare function installMarketSkill(source: MarketSource, slug: string, options: {
     skillsRoot: string;
     allowUninstall: boolean;
+    owner?: string;
 }): Promise<InstallResult>;
 /**
  * Remove one skill this plugin installed.

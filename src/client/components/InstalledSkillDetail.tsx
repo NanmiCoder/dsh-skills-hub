@@ -33,10 +33,13 @@ import { MarkdownView } from './MarkdownView.tsx'
 import { SkillAvatar } from './SkillAvatar.tsx'
 import { SkillFiles } from './SkillFiles.tsx'
 import {
-  Fact,
+  Chip,
+  DetailColumns,
+  InfoRow,
+  SideCard,
   SkillDetailShell,
+  TabCount,
   detailStyles,
-  type SkillDetailTab,
 } from './SkillDetailShell.tsx'
 import styles from './InstalledSkillDetail.module.css'
 
@@ -59,14 +62,14 @@ export function InstalledSkillDetail(props: {
   onBack: () => void
   onUninstall: (item: InstalledSkillRecord) => void
   /** Open the same skill's market page; only offered for market provenance. */
-  onOpenMarket: (id: string) => void
+  onOpenMarket: (id: string, owner?: string) => void
 }): JSX.Element {
   const { item } = props
   const t = useT()
   const [detail, setDetail] = useState<LocalSkillDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
-  const [tab, setTab] = useState<SkillDetailTab>('overview')
+  const [tab, setTab] = useState<'overview' | 'files'>('overview')
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [file, setFile] = useState<MarketFileContent | null>(null)
   const [fileLoading, setFileLoading] = useState(false)
@@ -144,148 +147,159 @@ export function InstalledSkillDetail(props: {
     detail !== null && detail.files.length === 1 && detail.files[0]?.path === baseName
   const installedAt = item.installedAt === undefined ? '' : formatInstalledAt(item.installedAt)
 
+  const fileCount = detail?.files.length ?? item.fileCount
+  const sourceName = item.source === 'local' ? t('localSkill') : t(`source.${item.source}`)
+
   return (
     <SkillDetailShell
       focusKey={item.key}
       onBack={props.onBack}
-      backLabel={t('back')}
-      avatar={<SkillAvatar name={item.name} source={item.source} size={84} />}
-      eyebrow={
-        <>
-          <span className={detailStyles.source}>{t(`source.${item.source}`)}</span>
-          {item.version !== undefined && item.version !== '' && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span className={detailStyles.version}>v{item.version}</span>
-            </>
-          )}
-        </>
-      }
+      backLabel={t('installedTitle')}
+      avatar={<SkillAvatar name={item.name} source={item.source} size={72} />}
       name={item.name}
-      badges={
+      version={item.version}
+      meta={
         <>
-          <span className={`${styles.chip} ${item.managed ? styles.chipOn : ''}`}>
-            {item.managed ? t('managedByHub') : t('unmanagedSkill')}
+          <span>{sourceName}</span>
+          {installedAt !== '' && <span>{t('installedOn', { date: installedAt })}</span>}
+          <span>
+            {t('filesCount', { count: item.fileCount })} · {fileSizeText(item.bytes)}
           </span>
-          {item.linked && <span className={styles.chip}>{t('symlinkSkill')}</span>}
         </>
       }
       summary={item.summary}
+      chips={
+        <>
+          <Chip tone={item.managed ? 'blue' : 'plain'}>{item.managed ? t('managedByHub') : t('unmanagedSkill')}</Chip>
+          {item.linked && <Chip>{t('symlinkSkill')}</Chip>}
+          {detail !== null && <Chip>{flatSkill ? t('flatSkill') : t('bundleSkill')}</Chip>}
+        </>
+      }
+      actions={
+        <>
+          {marketId !== null && (
+            <button
+              type="button"
+              className={detailStyles.secondaryButton}
+              onClick={() => props.onOpenMarket(marketId, item.owner)}
+            >
+              {t('openInMarket')}
+              <ExternalLinkIcon size={14} />
+            </button>
+          )}
+          <button
+            type="button"
+            className={detailStyles.secondaryButton}
+            disabled={!item.removable}
+            title={item.removable ? t('uninstallConfirm') : t('uninstallDisabled')}
+            onClick={() => props.onUninstall(item)}
+          >
+            <TrashIcon size={14} />
+            {t('uninstall')}
+          </button>
+        </>
+      }
+      tabs={[
+        { key: 'overview', label: t('overview') },
+        { key: 'files', label: t('files'), badge: <TabCount value={fileCount} /> },
+      ]}
+      activeTab={tab}
+      onTabChange={setTab}
       notice={
         <div className={styles.pathRow}>
           <FolderIcon size={14} className={styles.pathIcon} />
           <span className={styles.pathText} title={item.dirPath}>
             {item.dirPath}
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             className={styles.pathCopy}
             aria-label={copied ? t('copiedPath') : t('copyPath')}
             onClick={copyPath}
-            icon={copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
           >
+            {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
             {copied ? t('copiedPath') : t('copyPath')}
-          </Button>
+          </button>
         </div>
       }
-      overviewLabel={t('overview')}
-      filesLabel={`${t('files')} (${detail?.files.length ?? item.fileCount})`}
-      activeTab={tab}
-      onTabChange={setTab}
-      overview={
-        error !== null ? (
-          <div className={styles.failure} role="alert">
-            <p className={styles.failureTitle}>{t('installedReadFailed')}</p>
-            <p className={styles.failureText}>{error}</p>
-            <Button variant="outline" size="sm" onClick={() => setRevision((value) => value + 1)}>
-              {t('retry')}
-            </Button>
-          </div>
-        ) : detail === null ? (
-          <p className={detailStyles.muted} role="status" aria-live="polite">
-            <StateDot state="ongoing" size={14} /> {t('loading')}
-          </p>
-        ) : (
-          <>
-            {/* Same shape as the market page's overview: metadata as structure,
-                the document as prose. The raw YAML block stays reachable in the
-                Files tab's source view. */}
-            {metadata !== null && (
-              <div className={detailStyles.frontmatter}>
-                <FrontmatterPanel data={metadata} />
-              </div>
-            )}
-            {body.trim() === '' ? (
-              <p className={detailStyles.muted}>{t('emptyDocument')}</p>
-            ) : (
-              <MarkdownView content={body} />
-            )}
-          </>
-        )
-      }
-      files={
-        error !== null ? (
-          <p className={detailStyles.muted} role="alert">
-            {t('installedReadFailed')}
-          </p>
-        ) : (
-          <SkillFiles
-            files={detail?.files ?? []}
-            selected={file}
-            loading={fileLoading || detail === null}
-            error={fileError}
-            onSelect={(path) => {
-              // Drop the previous document first: keeping it on screen while the
-              // next one loads would label the old bytes with the new path.
-              setFile(null)
-              setSelectedPath(path)
-            }}
-          />
-        )
-      }
-      rail={
-        <>
-          <div className={detailStyles.railAction}>
-            <Button
-              variant="outline"
-              size="md"
-              disabled={!item.removable}
-              title={item.removable ? t('uninstallConfirm') : t('uninstallDisabled')}
-              icon={<TrashIcon size={16} />}
-              onClick={() => props.onUninstall(item)}
-            >
-              {t('uninstall')}
-            </Button>
-            {marketId !== null && (
-              <Button
-                variant="ghost"
-                size="md"
-                icon={<ExternalLinkIcon size={16} />}
-                onClick={() => props.onOpenMarket(marketId)}
-              >
-                {t('openInMarket')}
-              </Button>
-            )}
-          </div>
+    >
+      {tab === 'overview' && (
+        <DetailColumns
+          main={
+            <section className={detailStyles.card}>
+              {error !== null ? (
+                <div className={styles.failure} role="alert">
+                  <p className={styles.failureTitle}>{t('installedReadFailed')}</p>
+                  <p className={styles.failureText}>{error}</p>
+                  <Button variant="outline" size="sm" onClick={() => setRevision((value) => value + 1)}>
+                    {t('retry')}
+                  </Button>
+                </div>
+              ) : detail === null ? (
+                <p className={detailStyles.muted} role="status" aria-live="polite">
+                  <StateDot state="ongoing" size={14} /> {t('loading')}
+                </p>
+              ) : (
+                <>
+                  <header className={styles.docHeader}>
+                    <span className={detailStyles.mono}>SKILL.md</span>
+                  </header>
+                  {/* Same shape as the market page: the document as prose, its
+                      metadata as structure. The raw YAML stays reachable in the
+                      Files tab's source view. */}
+                  {body.trim() === '' ? (
+                    <p className={detailStyles.muted}>{t('emptyDocument')}</p>
+                  ) : (
+                    <MarkdownView content={body} />
+                  )}
+                  {metadata !== null && (
+                    <div className={detailStyles.frontmatter}>
+                      <FrontmatterPanel data={metadata} />
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          }
+          side={
+            <SideCard title={t('info')}>
+              <dl className={detailStyles.info}>
+                <InfoRow label={t('sourceLabel')} value={sourceName} />
+                {item.version !== undefined && item.version !== '' && (
+                  <InfoRow label={t('version')} value={`v${item.version}`} mono />
+                )}
+                {installedAt !== '' && <InfoRow label={t('installedAtLabel')} value={installedAt} />}
+                {detail !== null && <InfoRow label={t('skillKind')} value={flatSkill ? t('flatSkill') : t('bundleSkill')} />}
+                <InfoRow label={t('files')} value={`${t('filesCount', { count: item.fileCount })} · ${fileSizeText(item.bytes)}`} />
+              </dl>
+              {marketId !== null && <p className={styles.provenance}>{t('marketProvenance')}</p>}
+            </SideCard>
+          }
+        />
+      )}
 
-          <dl className={detailStyles.facts}>
-            <Fact label={t('sourceLabel')}>{t(`source.${item.source}`)}</Fact>
-            {item.version !== undefined && item.version !== '' && (
-              <Fact label={t('version')}>v{item.version}</Fact>
-            )}
-            {installedAt !== '' && <Fact label={t('installedAtLabel')}>{installedAt}</Fact>}
-            {detail !== null && (
-              <Fact label={t('skillKind')}>{flatSkill ? t('flatSkill') : t('bundleSkill')}</Fact>
-            )}
-            <Fact label={t('files')}>
-              {t('filesCount', { count: item.fileCount })} · {fileSizeText(item.bytes)}
-            </Fact>
-          </dl>
-
-          {marketId !== null && <p className={styles.provenance}>{t('marketProvenance')}</p>}
-        </>
-      }
-    />
+      {tab === 'files' && (
+        <section className={detailStyles.card}>
+          {error !== null ? (
+            <p className={detailStyles.muted} role="alert">
+              {t('installedReadFailed')}
+            </p>
+          ) : (
+            <SkillFiles
+              files={detail?.files ?? []}
+              selected={file}
+              loading={fileLoading || detail === null}
+              error={fileError}
+              onSelect={(path) => {
+                // Drop the previous document first: keeping it on screen while the
+                // next one loads would label the old bytes with the new path.
+                setFile(null)
+                setSelectedPath(path)
+              }}
+            />
+          )}
+        </section>
+      )}
+    </SkillDetailShell>
   )
 }

@@ -1,7 +1,7 @@
 /**
  * Skills Hub HTTP surface.
  *
- * One `prefix` route (`/api/skills-hub`) owns the seven endpoints the panel
+ * One `prefix` route (`/api/skills-hub`) owns the endpoints the panel
  * needs; every response is JSON with `Cache-Control: no-store`, because the
  * panel polls and every payload is either live upstream data or live disk state.
  *

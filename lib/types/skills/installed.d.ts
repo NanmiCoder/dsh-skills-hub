@@ -30,6 +30,8 @@ export interface InstalledMetaFile {
     id: string;
     source: MarketSource;
     slug: string;
+    /** Registry author (ClawHub slugs are shared across authors); absent in older sidecars. */
+    owner?: string;
     version?: string;
     installedAt: string;
     files: Array<{
@@ -47,6 +49,8 @@ export interface InstalledSkillRecord {
     id: string;
     source: MarketSource | 'local';
     slug: string;
+    /** Registry author recorded at install time, when known */
+    owner?: string;
     name: string;
     dirName: string;
     /**

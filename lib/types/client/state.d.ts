@@ -23,7 +23,7 @@
  * requests on purpose, and `isAbortError` keeps those rejections out of
  * `state.error` / `state.notice`.
  */
-import type { MarketFileContent, MarketSource, NormalizedSkill, NormalizedSkillDetail, SecurityStatus, SourceStatusInfo } from '../market/types.ts';
+import type { MarketCategory, MarketFileContent, MarketSource, NormalizedSkill, NormalizedSkillDetail, SecurityStatus, SourceStatusInfo } from '../market/types.ts';
 /**
  * Notice values that are dictionary *codes* rather than literal text.
  *
@@ -36,9 +36,19 @@ export declare const MARKET_NOTICE_CODES: readonly ["installDone", "uninstallDon
 export type MarketNoticeCode = (typeof MARKET_NOTICE_CODES)[number];
 /** Whether a `state.notice` value is a dictionary code (as opposed to verbatim text). */
 export declare function isMarketNoticeCode(notice: string): notice is MarketNoticeCode;
+/** Tabs of the market detail page. */
+export type MarketDetailTab = 'overview' | 'files' | 'security' | 'changelog';
 /** Active catalogue filters. */
 export interface MarketFilters {
     q: string;
+    /**
+     * `catalog`: the curated list shipped with the plugin (default).
+     * `market`: live search across both registries, entered explicitly from a
+     * catalogue search; clearing the query returns to the catalogue.
+     */
+    scope: 'catalog' | 'market';
+    /** Catalogue category key, or `'all'`. */
+    category: string;
     source: 'all' | MarketSource;
     security: 'all' | SecurityStatus;
     installed: 'all' | 'installed' | 'installable';
@@ -46,8 +56,12 @@ export interface MarketFilters {
 /** Everything the panel renders from. Immutable: each commit publishes a new object. */
 export interface MarketState {
     filters: MarketFilters;
+    /** Category bar entries; empty until loaded. */
+    categories: MarketCategory[];
     items: NormalizedSkill[];
     nextCursor: string | null;
+    /** Matching skills in total, when the list knows it (the curated catalogue does). */
+    total: number | null;
     sources: Record<MarketSource, SourceStatusInfo>;
     /** Each card retains the provenance of its own page when more pages append. */
     itemStatuses: Record<string, SourceStatusInfo>;
@@ -65,7 +79,7 @@ export interface MarketState {
     detailStatus: SourceStatusInfo | null;
     detailLoading: boolean;
     detailError: string | null;
-    activeTab: 'overview' | 'files';
+    activeTab: MarketDetailTab;
     file: MarketFileContent | null;
     fileLoading: boolean;
     installingIds: ReadonlySet<string>;
@@ -83,14 +97,20 @@ export interface MarketController {
     }): Promise<void>;
     loadMore(): Promise<void>;
     setQuery(q: string): void;
+    setCategory(category: MarketFilters['category']): void;
+    setScope(scope: MarketFilters['scope']): void;
+    /** Load the category bar once per controller (repeat calls share it). */
+    loadCategories(): Promise<void>;
     setSource(source: MarketFilters['source']): void;
     setSecurity(security: MarketFilters['security']): void;
     setInstalledFilter(installed: MarketFilters['installed']): void;
+    /** `owner` names the registry author when the id alone is ambiguous (ClawHub). */
     openDetail(id: string, options?: {
         refresh?: boolean;
+        owner?: string;
     }): Promise<void>;
     closeDetail(): void;
-    setTab(tab: 'overview' | 'files'): void;
+    setTab(tab: MarketDetailTab): void;
     selectFile(path: string): Promise<void>;
     requestInstall(id: string): void;
     cancelInstall(): void;

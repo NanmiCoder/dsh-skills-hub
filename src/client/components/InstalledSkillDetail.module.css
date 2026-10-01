@@ -1,27 +1,6 @@
-/* Local-skill chrome. The reading surface itself — header, tabs, document
-   column, facts rail, file viewer — is `SkillDetailShell.module.css`; only what
-   is specific to a skill that lives on disk belongs here. */
-
-.chip {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  box-sizing: border-box;
-  height: 20px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: var(--dsw-alias-bg-layer-2, #f0f2f5);
-  color: var(--dsw-alias-label-secondary, #61666b);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 18px;
-  white-space: nowrap;
-}
-
-.chipOn {
-  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 12%, transparent);
-  color: var(--dsw-alias-state-business-primary, #4176e6);
-}
+/* Local-skill pieces. The page itself — header, tabs, canvas, cards, side
+   rail, file viewer — is `SkillDetailShell`; only what is specific to a skill
+   that lives on disk belongs here. */
 
 /* Location line. The absolute path is the one fact a local skill has and a
    market entry does not, so it sits directly under the header instead of in the
@@ -29,11 +8,11 @@
 .pathRow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
-  padding: 7px 10px;
-  border: 1px solid var(--dsw-alias-border-l2, #0000001a);
-  border-radius: var(--dsw-radius-sm, 8px);
+  padding: 10px 14px;
+  border: 1px solid var(--dsw-alias-border-l2, #e4e6eb);
+  border-radius: 12px;
   background: var(--dsw-alias-bg-layer-1, #ffffff);
 }
 
@@ -46,21 +25,51 @@
   flex: 1;
   min-width: 0;
   color: var(--dsw-alias-label-secondary, #61666b);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11.5px;
+  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
   line-height: 18px;
   /* Wrap rather than clip: the tail of a path is the part that identifies it. */
   overflow-wrap: anywhere;
 }
 
 .pathCopy {
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2, #e4e6eb);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #12141a);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pathCopy:hover {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary, #12141a) 6%, transparent);
+}
+
+.pathCopy:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #2f49d1);
+  outline-offset: 2px;
+}
+
+.docHeader {
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, #eef0f3);
+  color: var(--dsw-alias-label-tertiary, #6b7080);
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .provenance {
-  margin: 0;
-  padding: 12px 14px 14px;
-  border-top: 1px solid var(--dsw-alias-border-l1, #0000000a);
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--dsw-alias-border-l1, #eef0f3);
   color: var(--dsw-alias-label-tertiary, #81858c);
   font-size: 12px;
   line-height: 18px;
