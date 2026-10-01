@@ -100,7 +100,7 @@ const zhDictionary = {
   noChangelog: '上游没有提供这个版本的更新说明。',
   scanReports: '扫描结果',
   noReports: '上游没有提供安全扫描结果。',
-  scanDisclaimer: '扫描结论来自上游平台，未经 DeepSeek 审核；安装即表示你信任该作者。',
+  scanDisclaimer: '扫描结论来自上游平台，本插件只做展示，不对其作担保；安装即表示你信任该作者。',
   readingTime: '约 {minutes} 分钟阅读',
   expand: '展开全文',
   collapse: '收起',
@@ -129,8 +129,8 @@ const zhDictionary = {
   'level.high': '高',
   'level.medium': '中',
   'level.low': '低',
-  installWarnFlagged: '上游安全扫描将此技能标记为可疑。它未经 DeepSeek 审核，安装即表示你信任该作者。',
-  installWarnUnknown: '上游没有这个技能的安全扫描结论。它未经 DeepSeek 审核，安装即表示你信任该作者。',
+  installWarnFlagged: '上游安全扫描将此技能标记为可疑。安装即表示你信任该作者，请先查看安全报告。',
+  installWarnUnknown: '上游没有这个技能的安全扫描结论。安装即表示你信任该作者，请先查看 SKILL.md。',
   ack: '我已查看 SKILL.md 与安全报告，了解上述权限',
   installedOn: '安装于 {date}',
   'scanShort.verified': '已验证',
@@ -194,7 +194,7 @@ const zhDictionary = {
   version: '版本',
 
   disclaimer:
-    '第三方技能由社区作者提供，未经 DeepSeek 审核。安装表示你信任其来源，请在安装前查看安全报告与 SKILL.md 内容。',
+    '技能由第三方社区作者发布；Skills Hub 是社区插件，并非 DeepSeek 官方出品。精选清单只做整理推荐，不构成安全担保，安装即表示你信任该技能的作者，请先查看安全报告与 SKILL.md。',
   dismiss: '知道了',
 
   'sourceStatus.ok': '正常',
@@ -302,7 +302,7 @@ export const en: Record<keyof typeof zhDictionary, string> = {
   noChangelog: 'Upstream has no release note for this version.',
   scanReports: 'Scan results',
   noReports: 'Upstream has no security scan for this skill.',
-  scanDisclaimer: 'Verdicts come from the upstream registry and are not reviewed by DeepSeek; installing means you trust the author.',
+  scanDisclaimer: 'Verdicts come from the upstream registry; this plugin only shows them and does not vouch for them. Installing means you trust the author.',
   readingTime: '~{minutes} min read',
   expand: 'Show all',
   collapse: 'Collapse',
@@ -331,8 +331,8 @@ export const en: Record<keyof typeof zhDictionary, string> = {
   'level.high': 'High',
   'level.medium': 'Medium',
   'level.low': 'Low',
-  installWarnFlagged: 'The upstream scan flags this skill as suspicious. DeepSeek has not reviewed it; installing means you trust the author.',
-  installWarnUnknown: 'Upstream has no scan verdict for this skill. DeepSeek has not reviewed it; installing means you trust the author.',
+  installWarnFlagged: 'The upstream scan flags this skill as suspicious. Installing means you trust the author; read the security report first.',
+  installWarnUnknown: 'Upstream has no scan verdict for this skill. Installing means you trust the author; read SKILL.md first.',
   ack: 'I have read SKILL.md and the security report and understand these permissions',
   installedOn: 'Installed {date}',
   'scanShort.verified': 'Verified',
@@ -396,7 +396,7 @@ export const en: Record<keyof typeof zhDictionary, string> = {
   version: 'Version',
 
   disclaimer:
-    'Third-party skills come from community authors and are not reviewed by DeepSeek. Installing means you trust the source; read the security report and SKILL.md before you install.',
+    'Skills are published by third-party community authors; Skills Hub is a community plugin, not an official DeepSeek product. The curated list is a recommendation, not a security guarantee. Installing means you trust the skill\'s author; read the security report and SKILL.md first.',
   dismiss: 'Got it',
 
   'sourceStatus.ok': 'OK',
