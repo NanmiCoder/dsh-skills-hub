@@ -16,6 +16,7 @@
  *    otherwise be reachable by a cross-site request or a DNS-rebound page.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { HostConnectionService } from '@deepseek-ai/dsh-client-connection';
 /** Path prefix of the whole Skills Hub API. */
 export declare const ROUTE_PREFIX = "/api/skills-hub";
 /** Structural Web server contract (mirrors `WebServer.register`). */
@@ -33,18 +34,8 @@ export interface SkillsHubRoutesDeps {
     /** Initial local inventory scan, required before annotating persisted data. */
     ready?: () => Promise<void>;
 }
-/**
- * Browser-trust gate, structurally equal to the frozen contract's predicate.
- *
- * The real `HostConnectionService.requestRejection` returns `401 | 403 |
- * undefined` rather than a boolean (see
- * `@deepseek-ai/dsh-client-connection/lib/types/rpc.d.ts`), so this plugin
- * accepts both shapes: see {@link evaluateGate} for why the numeric form is
- * worth preserving.
- */
-export interface SkillsHubRequestGate {
-    requestRejection(req: IncomingMessage, res: ServerResponse): boolean;
-}
+/** Use the host's actual trust predicate; this import is erased from the runtime. */
+export type SkillsHubRequestGate = Pick<HostConnectionService, 'requestRejection'>;
 /**
  * Resolves the gate for one request.
  *

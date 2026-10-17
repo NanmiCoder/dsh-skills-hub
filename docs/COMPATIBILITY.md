@@ -1,6 +1,6 @@
 # Harness compatibility
 
-The build and peer dependency baseline is **`0.2.0-rc.2`** for every `@deepseek-ai/dsh-*` package. The source reference is tag `dsh-v0.2.0-rc.2`, commit `639ed015397290b3745d163aafe02ffee4aa3f84` in `deepseek-ai/deepseek-harness`. These are the precise package coordinates behind the requested desktop 0.2.0 release line; an untagged future `0.2.0` package is not silently covered.
+The build and peer dependency baseline is **`0.2.1-rc.1`** for every `@deepseek-ai/dsh-*` package. The source reference is tag `dsh-v0.2.1-rc.1`, commit `1600d8a1e140dcde43a1a0941940a0480712c011` in `deepseek-ai/deepseek-harness`. These are the precise package coordinates behind the requested desktop 0.2.1 release line; an untagged future `0.2.1` package is not silently covered.
 
 The referenced packages were confirmed on npm. A clean install resolves one cohort, with `autoInstallPeers: false`; missing host peers used by development packages are explicitly provided at the same version. No local workspace overrides or private filesystem paths are needed.
 
@@ -19,6 +19,24 @@ Use the exact source tag or installed desktop cohort, a temporary `DSH_HOME`, an
 7. Check light/dark layout and keyboard-accessible controls. Record actual results separately from automated fixture coverage.
 
 `pnpm pack:check` covers static typing, source and manifest contracts, regression tests, clean build, release metadata and tarball import closure. It does not by itself certify a running desktop session or upstream network availability. Future host cohorts must repeat this acceptance before widening peer ranges.
+
+## 0.0.4 / Harness 0.2.1-rc.1 acceptance — 2026-10-17
+
+Target: [official release `dsh-v0.2.1-rc.1`](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.1-rc.1), commit `1600d8a1e140dcde43a1a0941940a0480712c011`. The supplied source checkout was clean at that tag and was used only as reference. Plugin validation used the working changes on base commit `990840138d22d681f46e54fd2e876f0d6acd8398`; it was not a published release commit.
+
+All Harness development packages and peers now target the exact new cohort. Cordis and Schemastery development versions are 4.0.5 and 3.18.5. The upstream source no longer contains `dsh-invariants`, and npm has no 0.2.1-rc.1 release of that retired package; the unused development dependency was removed. The slot registrations, module factory and user skill roots remain compatible. The HTTP trust predicate now imports the actual host type instead of casting its numeric status to a boolean contract.
+
+The unchanged baseline passed 96 tests on the old cohort. After migration, `pnpm install --frozen-lockfile` and `pnpm pack:check` passed, including 97 tests, typechecking, regenerated `lib/`, metadata and tarball closure checks. The new integration test uses real Cordis, WebServer and HostConnectionService instances (only cookie verification is a fixture), verifies 401/403/200 responses, route disposal and reactivation. The lockfile contains no old Harness cohort or local source override.
+
+Runtime acceptance used the published npm `@deepseek-ai/dsh@0.2.1-rc.1`, with all 293 installed Harness packages pinned to that cohort, on macOS arm64 / Node 26.7.0. The plugin tarball was installed through `dsh plugin --profile web add <tarball>`, then booted through `dsh web --no-open --port 0`, using disposable `DSH_HOME` and `DSH_AGENTS_HOME`. Ego Lite drove the real host browser UI:
+
+- The sidebar entry mounted the curated home with 398 skills and 13 categories.
+- Searching for weather returned the curated results; opening Weather showed a loading skeleton, live ClawHub detail, rendered Markdown and its two-file inventory.
+- Confirmed installation wrote the two files and the `steipete` owner sidecar to the isolated skills root. The Installed page showed the actual local copy. Confirmed removal from its detail returned the inventory to zero and deleted the directory.
+- A disposable Markdown skill under the isolated shared agents root appeared after refresh. Its detail rendered a GFM table; confirmed local removal deleted that directory too.
+- Light mode and a 1000px-wide dark host window rendered without horizontal viewport overflow.
+
+Screenshots and runtime logs are local-only under ignored `artifacts/`. This verifies the published host's shared Web surface and plugin protocol. Native Electron packaging, Windows/Linux runtime acceptance, and model-driven skill invocation were not exercised. No package publication, tag push or active user-profile modification was performed. Historical records below describe older plugin revisions, not an additional supported peer range for 0.0.4.
 
 ## 0.0.1 acceptance record — 2026-09-30
 

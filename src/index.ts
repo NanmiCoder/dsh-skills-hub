@@ -190,7 +190,7 @@ export function apply(ctx: Context, config: SkillsHubConfig): void {
     // activate after this route is registered, and a snapshot would leave the
     // marketplace readable — and installable — from any web page.
     const gate: SkillsHubGateSource = () =>
-      ctx.get('connection') as unknown as SkillsHubRequestGate | undefined
+      ctx.get('connection') as SkillsHubRequestGate | undefined
     const deps: SkillsHubRoutesDeps = {
       skillsRoot: () => resolveSkillsRoot(resolved.skillsRoot),
       allowUninstall: () => resolved.allowUninstall,

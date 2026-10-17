@@ -19,7 +19,7 @@
 
 Search ClawHub and SkillHub, read a skill’s instructions, and install it into Harness. Manage marketplace installations and existing local skills together in **Installed**.
 
-Current version: **0.0.3**. The home page now opens on 398 curated skills in 13 categories, with a redesigned detail page that explains what a skill will do once installed. [Release notes](./release-notes/v0.0.3.md)
+Current version: **0.0.4**, targeting **DeepSeek Harness 0.2.1-rc.1**. This release updates host dependencies and request authentication types while retaining the curated catalogue, previews and skill management. [Release notes](./release-notes/v0.0.4.md)
 
 <p align="center">
   <img src="./assets/readme/marketplace.png" width="100%" alt="Skills Hub marketplace with categories, search, filters and curated skill cards.">
@@ -28,34 +28,36 @@ Current version: **0.0.3**. The home page now opens on 398 curated skills in 13 
 | Feature | What it does |
 | --- | --- |
 | **Curated catalogue** | 398 popular ClawHub and SkillHub skills in 13 categories, shipped with the plugin and shown instantly. |
-| **Live search** | Type a keyword to search every skill on both marketplaces; same-name skills are told apart by author. |
+| **Live search** | Search the curated catalogue first, then choose the all-market search action; ClawHub details and installations are pinned to the author. |
 | **Preview before installing** | Read instructions and files, check upstream scans, and see the commands, secrets and network hosts a skill uses. |
 | **Manage installed skills** | Search local skills, inspect their source and installation path, and confirm removal. |
 | **Local cache** | Reuse browsed pages, details and file previews across desktop restarts. |
 
 ## Quick start
 
-Supports **DeepSeek Harness 0.2.0-rc.2**. [Compatible versions](./docs/COMPATIBILITY.md)
+Supports **DeepSeek Harness 0.2.1-rc.1**. [Compatible versions](./docs/COMPATIBILITY.md)
 
 Open **DeepSeek Harness desktop → Plugins → Add plugin** and paste either of the following:
 
-**GitHub repository URL (recommended)**
+**npm package name (recommended, pinned version)**
+
+```text
+@nanmicoder/dsh-skills-hub@0.0.4
+```
+
+**Or the GitHub repository URL**
 
 ```text
 https://github.com/NanmiCoder/dsh-skills-hub
 ```
 
-**Or the npm package name**
+Click **Install → Enable now**, then open **Skills Hub** from the sidebar. If the host requests a restart after updating, fully quit and reopen it.
 
-```text
-@nanmicoder/dsh-skills-hub@0.0.3
-```
-
-Click **Install → Enable now**, then open **Skills Hub** from the sidebar.
+For **Harness 0.2.0-rc.2**, use `@nanmicoder/dsh-skills-hub@0.0.3`. Version 0.0.4 declares support only for 0.2.1-rc.1; later untested host versions are not included.
 
 ## Use
 
-1. **Find**: browse the curated catalogue by category, or enter a keyword to search every skill.
+1. **Find**: browse or search the curated catalogue, then choose the all-market search action for more results.
 2. **Preview**: open a skill to read its instructions and inspect its files.
 3. **Install and manage**: confirm installation, then find or remove it in **Installed**.
 
