@@ -17,6 +17,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
 import {
   installMarketSkill,
   MarketInstallError,
@@ -66,18 +67,8 @@ export interface SkillsHubRoutesDeps {
   ready?: () => Promise<void>
 }
 
-/**
- * Browser-trust gate, structurally equal to the frozen contract's predicate.
- *
- * The real `HostConnectionService.requestRejection` returns `401 | 403 |
- * undefined` rather than a boolean (see
- * `@deepseek-ai/dsh-client-connection/lib/types/rpc.d.ts`), so this plugin
- * accepts both shapes: see {@link evaluateGate} for why the numeric form is
- * worth preserving.
- */
-export interface SkillsHubRequestGate {
-  requestRejection(req: IncomingMessage, res: ServerResponse): boolean
-}
+/** Use the host's actual trust predicate; this import is erased from the runtime. */
+export type SkillsHubRequestGate = Pick<HostConnectionService, 'requestRejection'>
 
 /**
  * Resolves the gate for one request.
@@ -196,18 +187,9 @@ function sendFailure(res: ServerResponse, error: unknown): void {
   )
 }
 
-/**
- * Run the browser-trust gate and return the rejection status, if any.
- *
- * The frozen gate type says `boolean`, the real service answers `401 | 403 |
- * undefined`; both are accepted so the envelope can report the true status when
- * the plugin is wired to the real Connection service, while a plain predicate
- * still works.
- */
-function evaluateGate(gate: SkillsHubRequestGate, req: IncomingMessage, res: ServerResponse): number | undefined {
-  const outcome = (gate.requestRejection as (request: IncomingMessage, response: ServerResponse) => unknown)(req, res)
-  if (outcome === undefined || outcome === false || outcome === null) return undefined
-  return typeof outcome === 'number' ? outcome : 403
+/** Preserve the host's authentication (401) and origin (403) rejections. */
+function evaluateGate(gate: SkillsHubRequestGate, req: IncomingMessage): number | undefined {
+  return gate.requestRejection(req)
 }
 
 /**
@@ -475,7 +457,7 @@ async function handle(
   // leaving the whole marketplace readable and installable from any web page.
   const resolvedGate = gate()
   if (resolvedGate !== undefined) {
-    const rejection = evaluateGate(resolvedGate, req, res)
+    const rejection = evaluateGate(resolvedGate, req)
     if (rejection !== undefined) {
       sendJson(
         res,

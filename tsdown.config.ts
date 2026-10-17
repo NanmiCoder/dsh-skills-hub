@@ -26,7 +26,7 @@ const PLATFORM_MODULES = [
   '@deepseek-ai/dsh-client-ui-primitives',
 ]
 
-/** This plugin needs only the 0.2.0-rc.2 platform seed entries. */
+/** This plugin needs only the 0.2.1-rc.1 platform seed entries. */
 const PRELOADED_CLIENT_EXTERNALS: string[] = []
 
 /** Externals resolved from the loader module table. */

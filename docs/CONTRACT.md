@@ -1,10 +1,10 @@
-# Skills Hub 0.0.3 implementation contract
+# Skills Hub 0.0.4 implementation contract
 
 This document describes the shipped code, not a migration plan. The TypeScript models in `src/market/types.ts`, `src/skills/installed.ts` and `src/client/api.ts` define the detailed wire shapes. Update this document with API changes.
 
 ## 1. Package and host
 
-The package is `@nanmicoder/dsh-skills-hub`, version `0.0.3`. Its supported host package cohort is exactly `0.2.0-rc.2`; the desktop release line is 0.2.0. The exact upstream tag and commit are recorded in `compatibility.json` and [COMPATIBILITY.md](COMPATIBILITY.md).
+The package is `@nanmicoder/dsh-skills-hub`, version `0.0.4`. Its supported host package cohort is exactly `0.2.1-rc.1`; the desktop release line is 0.2.1. The exact upstream tag and commit are recorded in `compatibility.json` and [COMPATIBILITY.md](COMPATIBILITY.md).
 
 `cordis.patch.yml` inserts one row (`id: skills-hub`) named after the scoped package. `lib/index.js` is the host entry. `lib/client.js` is the browser factory registered with `window.__ModuleLoader__.load` under that same package name. The plugin adds a global sidebar panel and does not replace built-in components or require an agent session.
 
@@ -73,7 +73,7 @@ Current market limits are 5 MiB per file, 20 MiB total and 200 files per install
 
 ### 5.1 Transport and validation
 
-One host prefix route serves the endpoints below. Responses are JSON with `Cache-Control: no-store`. Failures use `{ "error": { "code": "…", "message": "…" } }` and an appropriate non-2xx status. Methods, route depth, IDs, enum filters, body sizes and paths are validated. The connection gate can reject requests with 401/403.
+One host prefix route serves the endpoints below. Responses are JSON with `Cache-Control: no-store`. Failures use `{ "error": { "code": "…", "message": "…" } }` and an appropriate non-2xx status. Methods, route depth, IDs, enum filters, body sizes and paths are validated. The connection gate uses the host `HostConnectionService.requestRejection(request)` type directly: `undefined` admits the request, 401 rejects missing authentication and 403 rejects an untrusted authority/origin. The service is still resolved for each request.
 
 The browser surfaces transport failures as `NETWORK_ERROR`; invalid successful JSON becomes `MARKET_UPSTREAM_BAD_RESPONSE`. Aborted superseded reads are control flow and must not appear as user-visible errors.
 
