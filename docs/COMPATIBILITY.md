@@ -1,6 +1,6 @@
 # Harness compatibility
 
-The build and peer dependency baseline is **`0.2.1-rc.1`** for every `@deepseek-ai/dsh-*` package. The source reference is tag `dsh-v0.2.1-rc.1`, commit `1600d8a1e140dcde43a1a0941940a0480712c011` in `deepseek-ai/deepseek-harness`. These are the precise package coordinates behind the requested desktop 0.2.1 release line; an untagged future `0.2.1` package is not silently covered.
+The build dependency baseline is **`0.2.1-rc.2`** for every `@deepseek-ai/dsh-*` package. Peer dependencies explicitly accept **`0.2.1-rc.1 || 0.2.1-rc.2`**. The source reference is tag `dsh-v0.2.1-rc.2`, commit `687f282e8625c6b8d11ff58211a90524be2e4317` in `deepseek-ai/deepseek-harness`. An untagged future `0.2.1` package is not silently covered.
 
 The referenced packages were confirmed on npm. A clean install resolves one cohort, with `autoInstallPeers: false`; missing host peers used by development packages are explicitly provided at the same version. No local workspace overrides or private filesystem paths are needed.
 
@@ -19,6 +19,16 @@ Use the exact source tag or installed desktop cohort, a temporary `DSH_HOME`, an
 7. Check light/dark layout and keyboard-accessible controls. Record actual results separately from automated fixture coverage.
 
 `pnpm pack:check` covers static typing, source and manifest contracts, regression tests, clean build, release metadata and tarball import closure. It does not by itself certify a running desktop session or upstream network availability. Future host cohorts must repeat this acceptance before widening peer ranges.
+
+## 0.0.5 / Harness 0.2.1-rc.2 acceptance — 2026-10-18
+
+The reported desktop was already 0.2.1-rc.2. Official npm served plugin 0.0.4 (rc.1-only peers), while the mainland mirror still served latest 0.0.3 and had no 0.0.4 metadata. These are separate causes: switching registry cannot make an incompatible peer range compatible.
+
+Compared upstream tags rc.1 and rc.2 at the source reference above: no source changes in the consumed connection, locale, UI slots/layout/primitives/sidebar, host webserver, skill filesystem or home paths packages. The runtime bundles rebuild unchanged. Development dependencies now use one exact rc.2 cohort; peers retain rc.1 and explicitly add rc.2 rather than an open-ended range.
+
+`pnpm pack:check` passed all 97 tests, types, clean build, release metadata and tarball closure checks. Acceptance used the published npm rc.2 host with all Harness dependencies pinned to rc.2, macOS arm64 / Node 26.7.0, a packed 0.0.5 plugin and disposable home/agents directories. The host CLI accepted the tarball. Ego Lite verified the market mount, weather search, live Weather installation, installed detail with rendered Markdown and two files, and confirmed uninstall returning the inventory to zero; the skill directory was also removed. The same tarball was accepted by the rc.1 host CLI; the unchanged runtime's rc.1 UI coverage is recorded below. Native Electron packaging and Windows/Linux were not tested.
+
+This is release preparation, not publication. The plugin is intended for npm `latest` after merge. A GitHub Release marker does not update npm mirror metadata; README now directs users to the official registry when versions are missing or stale.
 
 ## 0.0.4 / Harness 0.2.1-rc.1 acceptance — 2026-10-17
 
