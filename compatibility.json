@@ -1,10 +1,13 @@
 {
   "schemaVersion": 1,
-  "pluginVersion": "0.0.4",
-  "recommendedHost": "0.2.1-rc.1",
-  "hostTag": "dsh-v0.2.1-rc.1",
-  "hostCommit": "1600d8a1e140dcde43a1a0941940a0480712c011",
+  "pluginVersion": "0.0.5",
+  "recommendedHost": "0.2.1-rc.2",
+  "hostTag": "dsh-v0.2.1-rc.2",
+  "hostCommit": "687f282e8625c6b8d11ff58211a90524be2e4317",
   "desktopReleaseLine": "0.2.1",
   "previewTag": "next",
-  "supportedHosts": ["0.2.1-rc.1"]
+  "supportedHosts": [
+    "0.2.1-rc.1",
+    "0.2.1-rc.2"
+  ]
 }
