@@ -1,0 +1,119 @@
+name: Verify candidate
+on:
+  workflow_call:
+    outputs:
+      artifact_sha256:
+        value: ${{ jobs.build.outputs.sha256 }}
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.policy.outputs.targets }}
+      sha256: ${{ steps.candidate.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: policy
+        run: node scripts/compatibility.mjs --github-output >> "$GITHUB_OUTPUT"
+      - run: pnpm pack:check
+      - name: Require committed Git installation output
+        run: git diff --exit-code -- lib/
+      - name: Pack the candidate once
+        id: candidate
+        run: |
+          mkdir candidate
+          npm pack --ignore-scripts --pack-destination candidate
+          cd candidate
+          sha256sum *.tgz > SHA256SUMS
+          echo "sha256=$(cut -d ' ' -f 1 SHA256SUMS)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-candidate
+          path: candidate/
+          if-no-files-found: error
+  node22-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.19.0'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm pack:check
+  windows-package:
+    runs-on: windows-latest
+    steps:
+      - run: git config --global core.autocrlf true
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm pack:check
+  host:
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.build.outputs.targets) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-candidate
+          path: candidate
+      - name: Verify the candidate through the actual host CLI
+        shell: bash
+        env:
+          HOST_VERSION: ${{ matrix.host }}
+          EXPECTED_SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          cd candidate
+          sha256sum --check SHA256SUMS
+          test "$(cut -d ' ' -f 1 SHA256SUMS)" = "$EXPECTED_SHA256"
+          cd ..
+          node scripts/harness-runtime-verify.mjs --host-version "$HOST_VERSION" --artifact "$(echo candidate/*.tgz)" --report-dir host-report
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: harness-${{ matrix.os }}-${{ matrix.host }}
+          path: |
+            host-report/result.json
+            host-report/*.log
+          if-no-files-found: error
+  acceptance:
+    needs: [build, node22-package, windows-package, host]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: harness-*
+          path: host-reports
+      - name: Require every policy target to pass on the same artifact
+        env:
+          EXPECTED_SHA256: ${{ needs.build.outputs.sha256 }}
+        run: node scripts/harness-validation.mjs host-reports "$EXPECTED_SHA256"

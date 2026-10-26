@@ -1,6 +1,6 @@
 # Harness compatibility
 
-The build dependency baseline is **`0.2.1-rc.2`** for every `@deepseek-ai/dsh-*` package. Peer dependencies explicitly accept **`0.2.1-rc.1 || 0.2.1-rc.2`**. The source reference is tag `dsh-v0.2.1-rc.2`, commit `687f282e8625c6b8d11ff58211a90524be2e4317` in `deepseek-ai/deepseek-harness`. An untagged future `0.2.1` package is not silently covered.
+The build dependency baseline is **`0.2.1-rc.2`** for every `@deepseek-ai/dsh-*` package. Peer dependencies explicitly accept **`0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3`**; rc.3 is preview compatibility, while rc.2 remains recommended. The source reference is tag `dsh-v0.2.1-rc.2`, commit `687f282e8625c6b8d11ff58211a90524be2e4317` in `deepseek-ai/deepseek-harness`. An untagged future `0.2.1` package is not silently covered.
 
 The referenced packages were confirmed on npm. A clean install resolves one cohort, with `autoInstallPeers: false`; missing host peers used by development packages are explicitly provided at the same version. No local workspace overrides or private filesystem paths are needed.
 
@@ -19,6 +19,22 @@ Use the exact source tag or installed desktop cohort, a temporary `DSH_HOME`, an
 7. Check light/dark layout and keyboard-accessible controls. Record actual results separately from automated fixture coverage.
 
 `pnpm pack:check` covers static typing, source and manifest contracts, regression tests, clean build, release metadata and tarball import closure. It does not by itself certify a running desktop session or upstream network availability. Future host cohorts must repeat this acceptance before widening peer ranges.
+
+## 0.0.6 / upgrade reliability — 2026-10-26
+
+Prepared on base `62bed95` with an exact rc.2 development cohort. The single policy in `compatibility.json` records each exact host, source tag/commit and required Linux/Windows CI targets. `pnpm compatibility:sync` derives peer ranges; validation rejects missing required peers, mixed cohorts, invalid policy entries and a widening `engines.dsh`. New candidates can be exercised with `verify:host` before being included in policy; discovery never automatically adds them.
+
+Audited official `dsh-v0.2.1-rc.2` (`687f282e8625c6b8d11ff58211a90524be2e4317`) against `dsh-v0.2.1-rc.3` (`1f81c047fc48fa190a683e469daa699857e9afe8`). Source implementations in connection, locale, layout, slots, renderer, WebServer, home paths, filesystem skills, skill registry and the browser platform/module factory are unchanged. Sidebar `sidebar.panellist` retains its icon owner contract while adding More/pin controls; Skills Hub registers its existing icon/panel rather than replacing the sidebar. Primitives change Tooltip placement and add optional Menu props; our consumed Button/Input/Modal contracts remain. These source checks do not certify browser behavior by themselves.
+
+The previous manifest was rejected by the official rc.3 evaluator with six unmet peers. Adding only exact rc.3 admits that host and continues rejecting an unlisted rc.4; this was a metadata gate check, not runtime acceptance.
+
+Local acceptance used macOS arm64 / Node 26.7.0, published npm hosts and a packed 0.0.6 candidate. Every installed Harness package was verified against its exact cohort (rc.1: 293 packages; rc.2: 295; rc.3: 296). All three hosts passed actual CLI tarball installation without exemptions, resolved-profile identity, cold Web boot, 401/403 request fencing, a revisioned bundle served from the host boot graph, a disposable skill install/read/remove, and a separate process restart reading the same persistent snapshot without contacting the now-offline provider fixture. The host and filesystem are real; ClawHub/SkillHub transport is deterministic local HTTP. Reports and redacted logs are local-only under ignored `artifacts/`; no user profile was modified.
+
+Ego Lite browser acceptance on rc.3 verified the sidebar market entry and new More menu, the 398-entry curated home, explicit all-market search, rendered Markdown/GFM table, confirmed install, the installed inventory and its detail, and confirmed uninstall returning the inventory to zero. Light mode at 1000px and dark mode at 720px showed no horizontal viewport overflow. Error/unhandled-rejection listeners installed before reload captured no page exceptions. Screenshots and the browser summary remain under `artifacts/browser-rc3/`; the task browser was closed after acceptance. This exercises the shared Web UI, not a native Electron package.
+
+The reusable CI now requires Node 22.19/24, Windows packaging and all six Linux/Windows host combinations. Its aggregate checks bind OS, host, plugin version and tarball SHA-256, require every scenario and reject missing/failed reports. Publication consumes the same candidate; post-publication smoke downloads the exact registry version, verifies candidate SHA-256 and registry SRI, then runs actual host acceptance. Windows npm calls use Node's npm CLI entry without a shell; test directory links use junctions and ESM imports use file URLs. These CI lanes are implemented; Linux/Windows execution has not been observed in this local macOS session.
+
+`pnpm check:upstream` reads official npm `latest`/`next` and reports unknown hosts separately from a source/npm release gap. At implementation time official host `latest` was rc.2, `next` rc.3, and plugin `latest` was 0.0.5. No scheduler, npm publication or tag push was performed. Native Electron and live-provider availability remain outside this fixture run.
 
 ## 0.0.5 / Harness 0.2.1-rc.2 acceptance — 2026-10-18
 

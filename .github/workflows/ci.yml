@@ -6,16 +6,4 @@ permissions:
   contents: read
 jobs:
   verify:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node: ['22.19.0', '24']
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.node }}
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm pack:check
+    uses: ./.github/workflows/verify.yml
