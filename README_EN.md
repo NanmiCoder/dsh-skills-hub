@@ -39,12 +39,12 @@ Supports **DeepSeek Harness 0.2.1-rc.1 / rc.2 / rc.3**; rc.2 is recommended and 
 
 Open **DeepSeek Harness desktop → Plugins → Add plugin**, select the **official npm registry** as the installation source, and paste either of the following:
 
-The mainland mirror may lag behind new releases. If the plugin is not found or an older version is selected, switch registries first. Changing GitHub’s Latest release does not refresh npm mirrors.
+The mainland mirror may lag behind new releases. If the plugin is not found, switch to the official npm registry. Changing GitHub’s Latest release does not refresh npm mirrors.
 
-**npm package name (recommended, installs the latest release)**
+**npm package name with version (recommended)**
 
 ```text
-@nanmicoder/dsh-skills-hub
+@nanmicoder/dsh-skills-hub@0.0.6
 ```
 
 **Or the GitHub repository URL**
@@ -55,7 +55,9 @@ https://github.com/NanmiCoder/dsh-skills-hub
 
 Click **Install → Enable now**, then open **Skills Hub** from the sidebar. If the host requests a restart after updating, fully quit and reopen it.
 
-The unversioned npm package name follows `latest`. Check the [compatibility record](./docs/COMPATIBILITY.md) for the host versions supported by the current release, especially when using an older Harness version.
+Keep the version in the package spec. Harness desktop installs plugins with pnpm 11, which by default skips versions published less than 24 hours ago. For 24 hours after a release, an unversioned package name installs the previous version, and if that version does not support your Harness the installation fails as incompatible with DSH.
+
+On **Harness 0.2.0-rc.2**, install `@nanmicoder/dsh-skills-hub@0.0.3`. See the [compatibility record](./docs/COMPATIBILITY.md) for other host versions.
 
 ## Use
 
