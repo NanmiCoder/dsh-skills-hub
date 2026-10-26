@@ -39,12 +39,12 @@
 
 打开 **DeepSeek Harness 桌面端 → 插件 → 添加插件**，将「安装源」切换为 **官方 npm 源**，再粘贴以下任意一种内容：
 
-大陆镜像可能尚未同步新版本，出现「未找到相关插件」或解析到旧版时，请先切换安装源。切换 GitHub 的 Latest 标记不会刷新 npm 镜像。
+大陆镜像可能尚未同步新版本，出现「未找到相关插件」时，请切换到官方 npm 源。切换 GitHub 的 Latest 标记不会刷新 npm 镜像。
 
-**npm 包名（推荐，自动安装最新版本）**
+**npm 包名（推荐，带版本号）**
 
 ```text
-@nanmicoder/dsh-skills-hub
+@nanmicoder/dsh-skills-hub@0.0.6
 ```
 
 **或 GitHub 仓库地址**
@@ -55,7 +55,9 @@ https://github.com/NanmiCoder/dsh-skills-hub
 
 点击 **安装 → 立即启用**，然后从侧栏进入 **技能市场**。更新后若宿主提示重启，请完全退出再重新打开。
 
-不带版本号的 npm 包名会安装 `latest` 对应的最新发布版。最新版适用的宿主范围见[兼容记录](./docs/COMPATIBILITY.md)；使用旧版 Harness 时，请先核对兼容版本。
+请保留包名后的版本号。Harness 桌面端用 pnpm 11 安装插件，默认不安装发布未满 24 小时的版本。新版发布后的 24 小时内，不带版本号的包名会装到上一个版本；如果上一个版本不支持你的 Harness，安装会失败并提示「与 DSH … 不兼容」。
+
+仍使用 **Harness 0.2.0-rc.2** 时，请安装 `@nanmicoder/dsh-skills-hub@0.0.3`。其他宿主版本见[兼容记录](./docs/COMPATIBILITY.md)。
 
 ## 使用
 
