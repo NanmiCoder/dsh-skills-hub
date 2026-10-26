@@ -17,8 +17,9 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const ROOT = new URL('..', import.meta.url).pathname
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const ENTRY = join(ROOT, 'lib', 'index.js')
 let testHome
 const savedHome = process.env.DSH_HOME
@@ -104,7 +105,7 @@ test('host routes serve the marketplace end to end', { skip: built ? false : 'ru
   }
   const { ctx, disposeAll } = fakeContext(webServer)
 
-  const mod = await import(ENTRY)
+  const mod = await import(pathToFileURL(ENTRY).href)
   assert.equal(typeof mod.apply, 'function', 'host half must export apply')
   assert.equal(mod.name, 'skills-hub', 'host half must export its plugin name')
 
@@ -309,7 +310,7 @@ test('the browser gate fences the marketplace even when it activates late', { sk
     },
   }
   const { ctx, setConnection, disposeAll } = fakeContext(webServer)
-  const mod = await import(ENTRY)
+  const mod = await import(pathToFileURL(ENTRY).href)
   await mod.apply(ctx, {
     skillsRoot,
     clawhubBaseUrl: 'https://clawhub.ai',

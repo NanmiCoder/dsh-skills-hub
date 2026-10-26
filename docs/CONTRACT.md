@@ -146,3 +146,11 @@ Use the `packageManager` version in `package.json` and the single pnpm lockfile.
 `prepack` and `prepublishOnly` run the complete check. Git retains generated `lib/`; npm includes the browser bundle and declarations while excluding intermediate `lib/client/` JavaScript. The registry preflight refuses collisions, existing versions and backwards stable releases. CI and publication workflow details live in [RELEASE.md](RELEASE.md).
 
 Automated tests are distinct from exact-host/browser acceptance. The supported cohort, evidence and remaining scope belong in [COMPATIBILITY.md](COMPATIBILITY.md); widening peer ranges requires renewed host verification.
+
+## 8. Host verification policy
+
+`compatibility.json` is the sole exact-host policy. Supported host entries carry source tag/commit, track and Linux/Windows CI targets; `developmentHost` independently pins every development Harness package. Peer generation never discovers hosts. Required peer declarations cannot disappear, and an `engines.dsh` override must enumerate the same targets because the official installer prioritizes it over peers.
+
+The reusable CI packs once. All real-host reports must match that artifact SHA-256, plugin version, exact host cohort and platform, and contain successful CLI install, cold boot, authentication fence, served client bundle, skill install/uninstall and process-restart cache checks. A passing HTTP/bundle probe is distinct from browser DOM acceptance. The latter uses Ego Lite and is recorded separately. Post-publication smoke must download and verify the immutable registry bytes before the GitHub Release is announced.
+
+Upstream status is a read-only diagnostic: unverified official tags, unpublished source support and network failure are distinct outcomes. It does not change compatibility, profile composition or release state.

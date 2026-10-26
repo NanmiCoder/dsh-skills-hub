@@ -20,9 +20,9 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const ROOT = new URL('..', import.meta.url).pathname
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const LIB = join(ROOT, 'lib', 'market')
 const FIXTURES = join(ROOT, 'tests', 'fixtures', 'market')
 const SKIP_REASON = 'lib/ has not been built — run `npx tsc -p tsconfig.json` first'

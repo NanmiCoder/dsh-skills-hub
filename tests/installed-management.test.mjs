@@ -6,6 +6,8 @@ import { join } from 'node:path'
 import { scanInstalledSkills, installedLookupFrom } from '../lib/skills/installed.js'
 import { readInstalledFile, readInstalledSkill, removeInstalledSkill } from '../lib/skills/management.js'
 
+const linkDirectory = (target, destination) => symlink(target, destination, process.platform === 'win32' ? 'junction' : 'dir')
+
 async function fixture(run) {
   const base = await mkdtemp(join(tmpdir(), 'skills-management-'))
   try { await run(base) } finally { await rm(base, { recursive: true, force: true }) }
@@ -21,7 +23,7 @@ test('lists and previews local bundles, flat files, links and duplicate identiti
   await skill(roots[1], 'demo')
   await writeFile(join(roots[0], 'flat.md'), '# Flat')
   await skill(base, 'target')
-  await symlink(join(base, 'target'), join(roots[0], 'linked'))
+  await linkDirectory(join(base, 'target'), join(roots[0], 'linked'))
   const items = await scanInstalledSkills(roots)
   assert.equal(items.length, 4)
   const duplicates = items.filter(item => item.id === 'local:demo')
@@ -40,7 +42,7 @@ test('removes only selected local entry, preserves duplicate and symlink target'
   await skill(roots[0], 'demo')
   await skill(roots[1], 'demo')
   await skill(base, 'target')
-  await symlink(join(base, 'target'), join(roots[0], 'linked'))
+  await linkDirectory(join(base, 'target'), join(roots[0], 'linked'))
   const items = await scanInstalledSkills(roots)
   const selected = items.find(item => item.dirPath === join(roots[0], 'demo'))
   await assert.rejects(removeInstalledSkill(roots, selected.key, false), { status: 405 })
@@ -139,9 +141,9 @@ test('file previews stay inside the selected entry, and report truncation instea
   await writeFile(join(roots[0], 'demo', 'big.md'), 'x'.repeat(400 * 1024))
   await writeFile(join(base, 'secret.md'), 'outside')
   await symlink(join(base, 'secret.md'), join(roots[0], 'demo', 'escape.md'))
-  await symlink(base, join(roots[0], 'demo', 'out'))
+  await linkDirectory(base, join(roots[0], 'demo', 'out'))
   await writeFile(join(roots[0], 'flat.md'), '# Flat')
-  await symlink(join(roots[0], 'demo'), join(roots[0], 'linked'))
+  await linkDirectory(join(roots[0], 'demo'), join(roots[0], 'linked'))
 
   const items = await scanInstalledSkills(roots)
   const bundle = items.find(entry => entry.dirName === 'demo')
@@ -173,7 +175,7 @@ test('file previews stay inside the selected entry, and report truncation instea
 test('oversized documents stay listed but bounded preview rejects; nested links never count target files', () => fixture(async base => {
   await skill(base, 'large', '---\nname: Large\n---\n' + 'x'.repeat(3 * 1024 * 1024))
   await skill(base, 'normal')
-  await symlink(join(base, 'normal'), join(base, 'normal', 'loop'))
+  await linkDirectory(join(base, 'normal'), join(base, 'normal', 'loop'))
   const items = await scanInstalledSkills([base])
   const large = items.find(item => item.name === 'Large')
   assert.ok(large)

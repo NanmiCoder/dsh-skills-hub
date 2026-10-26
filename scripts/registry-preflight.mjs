@@ -2,8 +2,9 @@ import { spawnSync } from 'node:child_process'
 import { appendFileSync, readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import semver from 'semver'
+import { npmSync } from './npm-command.mjs'
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)))
-const result = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['view', pkg.name, '--json'], { encoding: 'utf8' })
+const result = npmSync(['view', pkg.name, '--json', '--registry=https://registry.npmjs.org/'])
 if (result.status !== 0) {
   let error
   try { error = JSON.parse(result.stdout).error } catch {}
@@ -14,7 +15,7 @@ if (result.status !== 0) {
   assert.equal(metadata.repository?.url, pkg.repository.url, 'registry package belongs to a different repository')
   if (metadata.versions?.includes(pkg.version)) {
     assert(process.argv.includes('--allow-existing-commit'), 'version already published')
-    const version = spawnSync('npm', ['view', `${pkg.name}@${pkg.version}`, '--json'], { encoding: 'utf8' })
+    const version = npmSync(['view', `${pkg.name}@${pkg.version}`, '--json', '--registry=https://registry.npmjs.org/'])
     assert.equal(version.status, 0, 'cannot verify published version')
     const published = JSON.parse(version.stdout)
     const head = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' })

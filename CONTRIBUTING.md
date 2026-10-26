@@ -15,7 +15,7 @@ Commit regenerated `lib/` with source changes because Git installations consume 
 For CLI users and local development, install a specific published version:
 
 ```sh
-dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.5
+dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.6
 ```
 
 The `desktop` command requires the CLI bundled with the desktop installation. With the npm-installed CLI, replace `desktop` with a supported profile such as `web`. To test a local source build:
@@ -23,7 +23,7 @@ The `desktop` command requires the CLI bundled with the desktop installation. Wi
 ```sh
 pnpm install --frozen-lockfile
 pnpm pack --pack-destination artifacts
-dsh plugin --profile desktop add ./artifacts/nanmicoder-dsh-skills-hub-0.0.5.tgz
+dsh plugin --profile desktop add ./artifacts/nanmicoder-dsh-skills-hub-0.0.6.tgz
 ```
 
 Fully quit and reopen the target Harness instance after a CLI install. Advanced configuration is documented in [CONFIGURATION.md](./docs/CONFIGURATION.md).
@@ -31,3 +31,11 @@ Fully quit and reopen the target Harness instance after a CLI install. Advanced 
 ## Curated catalogue
 
 The marketplace home list comes from `catalog/curation.json` (editorial: which skills, category, Chinese summary, picks) and its generated snapshot `src/catalog/skills.json`. To add or remove a skill, edit the curation, run `node scripts/catalog-refresh.mjs`, review the entries it reports as dropped, then `pnpm build`. Selection and security rules are in `docs/CATALOG.md`.
+
+## Compatibility and delivery checks
+
+`compatibility.json` owns exact supported hosts, source tags/commits, the independent development baseline and Linux/Windows verification targets. After auditing and testing a host candidate, edit that policy and run `pnpm compatibility:sync`; do not widen peers or add an `engines.dsh` escape hatch. `pnpm check:upstream` reads official npm metadata and reports unverified upstream tags separately from unpublished source changes. It never approves a host or publishes.
+
+`pnpm verify:host --host-version <exact> --artifact <tgz> --report-dir <fresh-directory>` creates an isolated host/profile and uses deterministic local provider responses. Optional `--runtime-dir <existing-npm-runtime>` reuses an exact host read-only; optional `--serve` keeps its browser surface open for Ego Lite acceptance. The script records actual installation, startup, authentication, bundle serving, install/removal and restart-cache evidence. Browser DOM acceptance remains a separate Ego Lite step. Do not commit the ignored acceptance artifacts or launch URLs.
+
+CI runs the reusable `verify.yml`; publication consumes that workflow's single validated candidate. Windows execution is required in CI, while a local macOS pass alone must not be described as Windows runtime evidence.

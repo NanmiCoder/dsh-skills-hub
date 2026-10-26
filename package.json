@@ -1,6 +1,6 @@
 {
   "name": "@nanmicoder/dsh-skills-hub",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Skills Hub for DeepSeek Harness: browse, preview, install and remove third-party skills from ClawHub and SkillHub inside the DSH Web GUI.",
   "type": "module",
   "main": "lib/index.js",
@@ -59,16 +59,19 @@
     "check": "pnpm typecheck && pnpm build && pnpm verify && pnpm verify:release",
     "prepack": "pnpm check",
     "prepublishOnly": "pnpm check",
-    "pack:check": "pnpm check && node scripts/pack-check.mjs"
+    "pack:check": "pnpm check && node scripts/pack-check.mjs",
+    "compatibility:sync": "node scripts/compatibility.mjs --write-peers",
+    "check:upstream": "node scripts/upgrade-status.mjs",
+    "verify:host": "node scripts/harness-runtime-verify.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.5",
-    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.1 || 0.2.1-rc.2",
-    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.1 || 0.2.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-layout": "0.2.1-rc.1 || 0.2.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.1 || 0.2.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.1 || 0.2.1-rc.2",
-    "@deepseek-ai/dsh-host-webserver": "0.2.1-rc.1 || 0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3",
+    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3",
+    "@deepseek-ai/dsh-host-webserver": "0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3",
     "@deepseek-ai/schemastery": "~3.18.5",
     "react": "^18.2.0"
   },

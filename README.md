@@ -19,7 +19,7 @@
 
 搜索 ClawHub 和 SkillHub 中的技能，阅读使用说明，再安装到 Harness。市场安装的技能和本机已有技能，都可以在「已安装技能」中查看和管理。
 
-当前版本：**0.0.5**，适配 **DeepSeek Harness 0.2.1-rc.1 / rc.2**，修复 rc.2 安装兼容性，保留精选清单、预览和技能管理功能。[更新说明](./release-notes/v0.0.5.md)
+当前版本：**0.0.6**，适配 **DeepSeek Harness 0.2.1-rc.1 / rc.2 / rc.3**（rc.3 为预览兼容），完善真实宿主验收和跨平台发布门禁。[更新说明](./release-notes/v0.0.6.md)
 
 <p align="center">
   <img src="./assets/readme/marketplace.png" width="100%" alt="Skills Hub 技能市场：分类、搜索、筛选和精选技能卡片。">
@@ -35,7 +35,7 @@
 
 ## 快速开始
 
-适用于 **DeepSeek Harness 0.2.1-rc.1 / rc.2**。[兼容版本](./docs/COMPATIBILITY.md)
+适用于 **DeepSeek Harness 0.2.1-rc.1 / rc.2 / rc.3**，推荐 rc.2，rc.3 为预览兼容。[兼容版本](./docs/COMPATIBILITY.md)
 
 打开 **DeepSeek Harness 桌面端 → 插件 → 添加插件**，将「安装源」切换为 **官方 npm 源**，再粘贴以下任意一种内容：
 
@@ -44,7 +44,7 @@
 **npm 包名（推荐，固定版本）**
 
 ```text
-@nanmicoder/dsh-skills-hub@0.0.5
+@nanmicoder/dsh-skills-hub@0.0.6
 ```
 
 **或 GitHub 仓库地址**
@@ -55,7 +55,7 @@ https://github.com/NanmiCoder/dsh-skills-hub
 
 点击 **安装 → 立即启用**，然后从侧栏进入 **技能市场**。更新后若宿主提示重启，请完全退出再重新打开。
 
-仍使用 **Harness 0.2.0-rc.2** 时，请安装 `@nanmicoder/dsh-skills-hub@0.0.3`；0.0.5 仅声明支持 0.2.1-rc.1 和 0.2.1-rc.2，不包含尚未验证的后续宿主版本。
+仍使用 **Harness 0.2.0-rc.2** 时，请安装 `@nanmicoder/dsh-skills-hub@0.0.3`；0.0.6 仅声明支持 0.2.1-rc.1、0.2.1-rc.2 和 0.2.1-rc.3，不包含尚未验证的后续宿主版本。
 
 ## 使用
 

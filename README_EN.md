@@ -19,7 +19,7 @@
 
 Search ClawHub and SkillHub, read a skill’s instructions, and install it into Harness. Manage marketplace installations and existing local skills together in **Installed**.
 
-Current version: **0.0.5**, targeting **DeepSeek Harness 0.2.1-rc.1 / rc.2**. This release fixes rc.2 installation compatibility while retaining the curated catalogue, previews and skill management. [Release notes](./release-notes/v0.0.5.md)
+Current version: **0.0.6**, targeting **DeepSeek Harness 0.2.1-rc.1 / rc.2 / rc.3** (rc.3 preview). This release adds real-host acceptance and cross-platform release gates; rc.2 remains recommended. [Release notes](./release-notes/v0.0.6.md)
 
 <p align="center">
   <img src="./assets/readme/marketplace.png" width="100%" alt="Skills Hub marketplace with categories, search, filters and curated skill cards.">
@@ -35,7 +35,7 @@ Current version: **0.0.5**, targeting **DeepSeek Harness 0.2.1-rc.1 / rc.2**. Th
 
 ## Quick start
 
-Supports **DeepSeek Harness 0.2.1-rc.1 / rc.2**. [Compatible versions](./docs/COMPATIBILITY.md)
+Supports **DeepSeek Harness 0.2.1-rc.1 / rc.2 / rc.3**; rc.2 is recommended and rc.3 is preview. [Compatible versions](./docs/COMPATIBILITY.md)
 
 Open **DeepSeek Harness desktop → Plugins → Add plugin**, select the **official npm registry** as the installation source, and paste either of the following:
 
@@ -44,7 +44,7 @@ The mainland mirror may lag behind new releases. If the plugin is not found or a
 **npm package name (recommended, pinned version)**
 
 ```text
-@nanmicoder/dsh-skills-hub@0.0.5
+@nanmicoder/dsh-skills-hub@0.0.6
 ```
 
 **Or the GitHub repository URL**
@@ -55,7 +55,7 @@ https://github.com/NanmiCoder/dsh-skills-hub
 
 Click **Install → Enable now**, then open **Skills Hub** from the sidebar. If the host requests a restart after updating, fully quit and reopen it.
 
-For **Harness 0.2.0-rc.2**, use `@nanmicoder/dsh-skills-hub@0.0.3`. Version 0.0.5 declares support only for 0.2.1-rc.1 and 0.2.1-rc.2; later untested host versions are not included.
+For **Harness 0.2.0-rc.2**, use `@nanmicoder/dsh-skills-hub@0.0.3`. Version 0.0.6 declares support only for 0.2.1-rc.1, 0.2.1-rc.2 and 0.2.1-rc.3; later untested host versions are not included.
 
 ## Use
 
