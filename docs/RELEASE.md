@@ -1,6 +1,6 @@
 # Release 0.0.6
 
-Package: `@nanmicoder/dsh-skills-hub`. Repository: `NanmiCoder/dsh-skills-hub`. Tag: `v0.0.6`. npm channel: `latest`. This plugin release is independent of the host version and supports exact `0.2.1-rc.1`, `0.2.1-rc.2` (recommended) and `0.2.1-rc.3` (preview). This is release preparation; npm publication requires separate authorization.
+Package: `@nanmicoder/dsh-skills-hub`. Repository: `NanmiCoder/dsh-skills-hub`. Tag: `v0.0.6`. npm channel: `latest`. This plugin release is independent of the host version and supports exact `0.2.1-rc.1`, `0.2.1-rc.2` (recommended) and `0.2.1-rc.3` (preview).
 
 ## Before publication
 
