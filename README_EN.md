@@ -41,10 +41,10 @@ Open **DeepSeek Harness desktop → Plugins → Add plugin**, select the **offic
 
 The mainland mirror may lag behind new releases. If the plugin is not found or an older version is selected, switch registries first. Changing GitHub’s Latest release does not refresh npm mirrors.
 
-**npm package name (recommended, pinned version)**
+**npm package name (recommended, installs the latest release)**
 
 ```text
-@nanmicoder/dsh-skills-hub@0.0.6
+@nanmicoder/dsh-skills-hub
 ```
 
 **Or the GitHub repository URL**
@@ -55,7 +55,7 @@ https://github.com/NanmiCoder/dsh-skills-hub
 
 Click **Install → Enable now**, then open **Skills Hub** from the sidebar. If the host requests a restart after updating, fully quit and reopen it.
 
-For **Harness 0.2.0-rc.2**, use `@nanmicoder/dsh-skills-hub@0.0.3`. Version 0.0.6 declares support only for 0.2.1-rc.1, 0.2.1-rc.2 and 0.2.1-rc.3; later untested host versions are not included.
+The unversioned npm package name follows `latest`. Check the [compatibility record](./docs/COMPATIBILITY.md) for the host versions supported by the current release, especially when using an older Harness version.
 
 ## Use
 

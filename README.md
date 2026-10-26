@@ -41,10 +41,10 @@
 
 大陆镜像可能尚未同步新版本，出现「未找到相关插件」或解析到旧版时，请先切换安装源。切换 GitHub 的 Latest 标记不会刷新 npm 镜像。
 
-**npm 包名（推荐，固定版本）**
+**npm 包名（推荐，自动安装最新版本）**
 
 ```text
-@nanmicoder/dsh-skills-hub@0.0.6
+@nanmicoder/dsh-skills-hub
 ```
 
 **或 GitHub 仓库地址**
@@ -55,7 +55,7 @@ https://github.com/NanmiCoder/dsh-skills-hub
 
 点击 **安装 → 立即启用**，然后从侧栏进入 **技能市场**。更新后若宿主提示重启，请完全退出再重新打开。
 
-仍使用 **Harness 0.2.0-rc.2** 时，请安装 `@nanmicoder/dsh-skills-hub@0.0.3`；0.0.6 仅声明支持 0.2.1-rc.1、0.2.1-rc.2 和 0.2.1-rc.3，不包含尚未验证的后续宿主版本。
+不带版本号的 npm 包名会安装 `latest` 对应的最新发布版。最新版适用的宿主范围见[兼容记录](./docs/COMPATIBILITY.md)；使用旧版 Harness 时，请先核对兼容版本。
 
 ## 使用
 

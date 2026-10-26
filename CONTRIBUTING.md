@@ -12,10 +12,10 @@ Commit regenerated `lib/` with source changes because Git installations consume 
 
 ## CLI and local source installation
 
-For CLI users and local development, install a specific published version:
+For CLI users and local development, install the latest published version:
 
 ```sh
-dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub@0.0.6
+dsh plugin --profile desktop add @nanmicoder/dsh-skills-hub
 ```
 
 The `desktop` command requires the CLI bundled with the desktop installation. With the npm-installed CLI, replace `desktop` with a supported profile such as `web`. To test a local source build:
